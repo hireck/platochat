@@ -1,0 +1,6 @@
+langchain
+streamlit
+openai
+sentence-transformers
+faiss-cpu
+langchain_openai
