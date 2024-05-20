@@ -4,3 +4,4 @@ openai
 sentence-transformers
 faiss-cpu
 langchain_openai
+langchain_community
