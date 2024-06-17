@@ -19,43 +19,43 @@ cross_encoder = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2')
 
 #scores = model.predict([["My first", "sentence pair"], ["Second text", "pair"]])
 
-def check_password():
-    """Returns `True` if the user had a correct password."""
+# def check_password():
+#     """Returns `True` if the user had a correct password."""
 
-    def login_form():
-        """Form with widgets to collect user information"""
-        with st.form("Credentials"):
-            st.text_input("Username", key="username")
-            st.text_input("Password", type="password", key="password")
-            st.form_submit_button("Log in", on_click=password_entered)
+#     def login_form():
+#         """Form with widgets to collect user information"""
+#         with st.form("Credentials"):
+#             st.text_input("Username", key="username")
+#             st.text_input("Password", type="password", key="password")
+#             st.form_submit_button("Log in", on_click=password_entered)
 
-    def password_entered():
-        """Checks whether a password entered by the user is correct."""
-        if st.session_state["username"] in st.secrets[
-            "passwords"
-        ] and hmac.compare_digest(
-            st.session_state["password"],
-            st.secrets.passwords[st.session_state["username"]],
-        ):
-            st.session_state["password_correct"] = True
-            del st.session_state["password"]  # Don't store the username or password.
-            del st.session_state["username"]
-        else:
-            st.session_state["password_correct"] = False
+#     def password_entered():
+#         """Checks whether a password entered by the user is correct."""
+#         if st.session_state["username"] in st.secrets[
+#             "passwords"
+#         ] and hmac.compare_digest(
+#             st.session_state["password"],
+#             st.secrets.passwords[st.session_state["username"]],
+#         ):
+#             st.session_state["password_correct"] = True
+#             del st.session_state["password"]  # Don't store the username or password.
+#             del st.session_state["username"]
+#         else:
+#             st.session_state["password_correct"] = False
 
-    # Return True if the username + password is validated.
-    if st.session_state.get("password_correct", False):
-        return True
+#     # Return True if the username + password is validated.
+#     if st.session_state.get("password_correct", False):
+#         return True
 
-    # Show inputs for username + password.
-    login_form()
-    if "password_correct" in st.session_state:
-        st.error("user not known or password incorrect")
-    return False
+#     # Show inputs for username + password.
+#     login_form()
+#     if "password_correct" in st.session_state:
+#         st.error("user not known or password incorrect")
+#     return False
 
 
-if not check_password():
-    st.stop()
+# if not check_password():
+#     st.stop()
 
 apikey = st.secrets["OPENAIAPIKEY"]
 headers = {
@@ -79,11 +79,11 @@ vectorstore = load_vectors()
 @st.cache_resource
 def load_gpt3_5():
     #return ChatOpenAI(model_name="gpt-4-1106-preview", temperature=0)
-    return ChatOpenAI(model_name="gpt-3.5-turbo-1106", temperature=0)
+    return ChatOpenAI(model_name="gpt-3.5-turbo-0125", temperature=0)
 
 @st.cache_resource
 def load_gpt4():
-    return ChatOpenAI(model_name="gpt-4-1106-preview", temperature=0)
+    return ChatOpenAI(model_name="gpt-4o", temperature=0)
     
     
 gpt3_5 = load_gpt3_5()
