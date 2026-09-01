@@ -1,0 +1,12 @@
+# Virtualenv
+.venv/
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+
+# Secrets — OPENWEBUI_API_KEY, LANGFUSE_*
+.env
+
+# macOS
+.DS_Store
