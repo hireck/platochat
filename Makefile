@@ -17,6 +17,8 @@ API_PORT  ?= 8000
 WEB_PORT  ?= 8090
 WEB_DIR   := local_site
 API_DIR   := platochat
+# The corpus-prep scripts (markdown conversion, chunking, Weaviate load).
+INGEST_DIR := ingest
 
 # The API deps live in a venv inside platochat (see the venv target below).
 # Override with:  make api PYTHON=/path/to/other/python
@@ -67,7 +69,7 @@ streamlit: check-venv
 # Defaults to --dry-run so a bare 'make reindex' cannot destroy the index.
 ARGS ?= --dry-run
 reindex: check-venv
-	$(PYTHON) reindex_weaviate.py $(ARGS)
+	$(PYTHON) $(INGEST_DIR)/reindex_weaviate.py $(ARGS)
 
 kill:
 	-@pkill -f "uvicorn plato_api" 2>/dev/null || true
