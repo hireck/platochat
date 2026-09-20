@@ -5,6 +5,15 @@ The PLATO pub website https://platopub.phys.au.dk/about/platopub.php , led by Mi
 
 In this project we will make the information from the PLATO publications available through a chatbot, and possibly also an MCP server. The goal is to encourage and facilitate researchers' use of PLATO data for high quality, impactful results, by reducing the time and effort they need to spend on understanding the technical details of the instrument and data. This way they can focus on the science.
 
+## Repository layout
+
+The whole PlatoPub folder is one git repo (remote: hireck/platochat, private).
+
+* `platochat/` — the chatbot itself: `plato_core.py` (the UI-agnostic core), `plato_api.py` (the FastAPI backend), `plato_chat.py` (the Streamlit UI), and `.env` with the API keys
+* `ingest/` — everything that turns papers into indexed chunks: `latexml_to_markdown.py` and `pdf_to_markdown.py` (source to markdown), `textsplitter.py` (chunking), `reindex_weaviate.py` (chunk and load into Weaviate), plus the paper metadata JSONs. `get_present_papers.py` and `chunk_tex_data_plato.py` are older code from the FAISS days, kept for reference; they still expect to be run from the data directory rather than from the repo.
+* `local_site/` — a local copy of the PLATO Pub pages, for developing the chatbot front-end against
+* `Makefile` — the dev runner: `make dev` starts the API and the static site together, `make reindex` rebuilds the Weaviate collection
+
 ## The chatbot
 
 The PLATO chatbot shall be part of the PLAT Pub website. We'll probably want to run it in a docker.
@@ -25,7 +34,7 @@ Figures: We want to have the option to have figures from the paper displayed if 
 The papers are listed on https://platopub.phys.au.dk/about/ads_feed.php . 
 Their complete metadata is then to be collected via the ADS link. There is an ADS_API_KEY in platochat/.env . There was some old code that yielded /Users/hilke/data/plato_data/OneDrive_1_11-03-2024/PLATOChat_papers.json, but this did not include publication dates, and possibly some other fields are missing as well. We wan tto collect all the available information.
 
-For papers that have an arxiv ID: If the latex source is available, we will process that (latexml_to_markdown.py), otherwise we will use u-miner to process the pdf (pdf_to_markdown.py).
+For papers that have an arxiv ID: If the latex source is available, we will process that (ingest/latexml_to_markdown.py), otherwise we will use u-miner to process the pdf (ingest/pdf_to_markdown.py).
 
 Papers that are not on arxiv often have a link to for example the publisher's page where the paper can be downloaded. This will typically be pdf, or maybe html in some cases. We will need to confirm which formats the papers are in, and figure out how we can automatically download them. Typically we will need to find the download link on the page.
 
