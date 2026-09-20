@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<title>PLATO-Pub - PLATO Chatbot</title>
+	<meta charset="utf-8" />
+	<meta name="description" content="PLATO-Pub - the publication webtool of the ESA Space Mission PLATO">
+	<meta name="author" content="Rasmus Handberg, Aarhus University">
+	<link href="/favicon.ico" rel="shortcut icon">
+	<meta http-equiv="x-ua-compatible" content="ie=edge" />
+	<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1" />
+	<!-- Real PLATO-Pub stylesheets (mirrored locally) -->
+	<link href="/css/unsemantic-grid-responsive-tablet.css" rel="stylesheet" type="text/css" />
+	<link href="https://code.jquery.com/ui/1.12.1/themes/redmond/jquery-ui.css" rel="stylesheet" type="text/css" />
+	<link href="https://fonts.googleapis.com/css?family=Open+Sans:400,400italic,700,600,600italic,700italic,800,800italic%7CVarela+Round" rel="stylesheet" type="text/css" />
+	<link href="/css/style.css" rel="stylesheet" type="text/css" />
+	<!-- Chatbot-specific styles (new, lives alongside the site) -->
+	<link href="/css/chatbot.css" rel="stylesheet" type="text/css" />
+	<script src="https://code.jquery.com/jquery-3.6.0.min.js" crossorigin="anonymous"></script>
+	<script src="https://code.jquery.com/ui/1.12.1/jquery-ui.min.js" crossorigin="anonymous"></script>
+	<script type="text/javascript" src="/js/scripts.js"></script>
+	<!-- Markdown + math rendering for chat replies -->
+	<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+	<script>
+		window.MathJax = {
+			tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$', '$$'], ['\\[', '\\]']] },
+			options: { ignoreHtmlClass: 'tex2jax_ignore', processHtmlClass: 'tex2jax_process' }
+		};
+	</script>
+	<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" id="MathJax-script" async></script>
+</head>
+<body class="tex2jax_ignore">
+<div id="main" class="ui-corner-bottom grid-container grid-parent">
+	<header>
+		<div id="header" class="grid-100">
+			<h1><a href="/about/platopub.php" title="Home">PLATO-Pub</a></h1>
+			<div id="subtitle">PLATO Publications Tool</div>
+		</div>
+		<nav id="tabs" class="grid-100">
+			<ul class="topnav hide-on-mobile">
+				<li><a href="/">Log in</a></li>
+				<li><a href="/newmember.php">New member</a></li>
+				<li><a href="/about/platopub.php">About</a></li>
+				<li class="topmenu-active"><a href="/about/chatbot.php">PLATO Chatbot</a></li>
+			</ul>
+			<ul class="topnav hide-on-tablet hide-on-desktop">
+				<li><a href="#" id="mobile_menu_link">&#9776;&nbsp;Menu</a></li>
+			</ul>
+		</nav>
+	</header>
+	<div id="page_central" class="grid-100 grid-parent">
+		<nav id="sidebar" class="grid-20 mobile-grid-100">
+			<ul>
+				<li><a href="/about/platopub.php">Home</a></li>
+				<li><a href="/about/platopub.php">PLATO-Pub open access</a>
+					<ul>
+						<li><a href="/about/ads_feed.php">Published PLATO Papers</a></li>
+					</ul>
+				</li>
+				<li><a href="/newmember.php">New member</a></li>
+			</ul>
+		</nav>
+		<div id="contents" class="grid-80 mobile-grid-100">
+
+			<div id="general_text">
+				<div>
+					<h1>PLATO Chatbot</h1>
+					<p>
+						Ask questions about the PLATO mission and its publications. This assistant is a
+						retrieval-augmented (RAG) system: it searches the papers collected in PLATO-Pub and
+						uses an LLM hosted by the AU Physics &amp; Astronomy AI Lab to answer, citing the
+						passages it relied on.
+					</p>
+				</div>
+			</div>
+
+			<!-- ====================  CHAT WIDGET (replaces Streamlit)  ==================== -->
+			<div id="chat-widget">
+				<div id="chat-log" class="tex2jax_process" aria-live="polite"></div>
+
+				<div id="chat-examples">
+					<span class="examples-label">Try an example:</span>
+					<button class="example-btn" type="button">When will PLATO become operational?</button>
+					<button class="example-btn" type="button">What kind of science can I do with PLATO?</button>
+				</div>
+
+				<form id="chat-form" autocomplete="off">
+					<input id="chat-input" type="text" placeholder="Ask about PLATO…" aria-label="Your question" />
+					<button id="chat-send" type="submit">Send</button>
+				</form>
+				<div id="chat-status"></div>
+			</div>
+			<!-- ========================================================================== -->
+
+		</div>
+	</div>
+	<footer id="footer" class="grid-100">Local development copy of PLATO-Pub — chatbot sandbox</footer>
+</div>
+<script type="text/javascript" src="/js/chatbot.js"></script>
+</body>
+</html>
