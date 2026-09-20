@@ -2,7 +2,7 @@
 PLATO Chat is a chatbot that lets users interact with the publications about the PLATO space telescope that are collected in PLATO-Pub. This collection is kept uo-to-date through regular automated NASA ADS searches.
 The full ist of papers can be found here: https://platopub.phys.au.dk/about/ads_feed.php
 The Plato-Pub web page: https://platopub.phys.au.dk, with the pubic part https://platopub.phys.au.dk/about/platopub.php
-PLATO Chat uses the GLM-5.2 LLM that is hosted by the AI Lab at the Aarhus University department of Physics and Astronomy.
+PLATO Chat uses the GLM-5.3 LLM that is hosted by the AI Lab at the Aarhus University department of Physics and Astronomy.
 
 
 # Information from the public PLATO-Pub website

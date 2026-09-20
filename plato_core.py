@@ -54,21 +54,26 @@ OPENAI_API_KEY       = os.environ.get("OPENAI_API_KEY")
 LANGFUSE_HOST        = os.environ.get("LANGFUSE_HOST", "http://localhost:3000")
 OPENWEBUI_API_KEY    = os.environ.get("OPENWEBUI_API_KEY")
 LLM_BASE_URL         = os.environ.get("PLATO_LLM_BASE_URL", "https://labbot.nat.au.dk/api")
-# The AI Lab endpoint serves GLM-5.2 in three reasoning tiers (GLM-instant /
-# GLM-high / GLM-max), MiniMax-M3 (MiniMax / Minimax-instant) and Kimi-K2.6.
+# The AI Lab endpoint serves GLM-5.3 in three reasoning tiers (GLM-5.3-instant /
+# GLM-5.3-high / GLM-5.3-max), plus Flash variants, Qwen3.8 and lab-* aliases.
+# NOTE the model ids carry the version number: when the lab moved from GLM-5.2
+# to 5.3 (seen 2026-09-20) the old ids (GLM-high, GLM-instant, MiniMax, Kimi)
+# vanished and every call failed with 400 "Model not found". If that error
+# comes back, re-list the roster (GET {LLM_BASE_URL}/models) and update these.
 #
-# Answering runs on GLM-high: measured against MiniMax on the same questions it
-# returned the headline figures the retrieved passages contain (rather than only
-# the surrounding formalism) and did so faster. GLM-max reasons harder still but
-# takes 3-5x longer per answer, which a chat UI cannot hide -- it is the tier to
-# reach for if a coding path is added later, not for interactive Q&A.
+# Answering runs on the -high tier: measured on GLM-5.2 against MiniMax on the
+# same questions it returned the headline figures the retrieved passages contain
+# (rather than only the surrounding formalism) and did so faster. The -max tier
+# reasons harder still but took 3-5x longer per answer, which a chat UI cannot
+# hide -- it is the tier to reach for if a coding path is added later, not for
+# interactive Q&A.
 #
-# Routing runs on GLM-instant: the router only picks sources and rewrites the
-# question into a standalone query, so a reasoning tier buys nothing, and a
+# Routing runs on the -instant tier: the router only picks sources and rewrites
+# the question into a standalone query, so a reasoning tier buys nothing, and a
 # non-reasoning model cannot preface its JSON with a <think> block for
-# instructor to trip over. Minimax-instant is an equally good fit here.
-ANSWER_MODEL         = os.environ.get("PLATO_ANSWER_MODEL", "GLM-high")
-ROUTER_MODEL         = os.environ.get("PLATO_ROUTER_MODEL", "GLM-instant")
+# instructor to trip over.
+ANSWER_MODEL         = os.environ.get("PLATO_ANSWER_MODEL", "GLM-5.3-high")
+ROUTER_MODEL         = os.environ.get("PLATO_ROUTER_MODEL", "GLM-5.3-instant")
 
 # Workaround for the OpenWebUI proxy in front of vLLM: it injects
 # stream_options={"include_usage": True} into forwarded requests but does not
