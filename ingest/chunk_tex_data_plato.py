@@ -3,8 +3,6 @@ import os
 import latex2markdown
 from langchain.text_splitter import MarkdownHeaderTextSplitter
 from langchain.schema.document import Document
-#from langchain.vectorstores import FAISS
-#from langchain.embeddings import HuggingFaceEmbeddings
 import copy
 import shutil
 import json
@@ -284,96 +282,3 @@ def extract_headings(pdf_path):
                 continue
 
     return headings
-
-#%%
-from langchain.vectorstores import FAISS
-from langchain.embeddings import HuggingFaceEmbeddings
-embedding_model = HuggingFaceEmbeddings()
-
-# Create the vector store
-vectorstore = FAISS.from_documents(all_docs, embedding_model)
-vectorstore.save_local("platochat/faiss_index_plato")
-
-#%%
-from langchain.vectorstores import FAISS
-from langchain.embeddings import HuggingFaceEmbeddings
-from langchain.schema.document import Document
-embedding_model = HuggingFaceEmbeddings()
-
-all_docs = []
-chunk_dirs = ["../../data/plato_data/latex_data_chunks/", "../../data/plato_data/pdf_data_chunks/"]
-for chunk_dir in chunk_dirs:
-    print(chunk_dir)
-    for fn in os.listdir(chunk_dir):
-        if fn.endswith('.json'):
-            print(fn)
-            with open(chunk_dir+fn) as f:
-                for l in f:
-                    data = json.loads(l)
-                    pagecon = data["page_content"]
-                    meta = data["metadata"]
-                    if not meta.get("Figure"):
-                        doc = Document(page_content=pagecon, metadata=meta)
-                        all_docs.append(doc)
-
-# Create the vector store
-vectorstore = FAISS.from_documents(all_docs, embedding_model)
-vectorstore.save_local("platochat/faiss_index_plato")
-
-
-#%%
-#question = 'What is the scientific purpose of the GAIA mission?'
-#question = 'where is the operating point of the gaia spacecraft?'
-#question = 'How many measurements of of a single star does gaia take during its lifetime? And what is the average accuracy of these datapoints?'
-#question = 'When was GAIA launched?'
-#question = 'Where is the GAIA spacecraft?'
-#question = 'How many measurements per star does GAIA take?'
-#question = 'How fast does GAIA rotate?'
-#question = 'What is the measurement principle of GAIA?'
-#question = 'Who are the main people involved in the GAIA mission?'
-
-docs = vectorstore.similarity_search(question,k=5)
-
-for num, rd in enumerate(docs):
-    print(str(num+1)+') '+str(rd.metadata["title"]))
-    section_info = []
-    for item in rd.metadata:
-        if item.startswith('Header'):
-            section_info.append(rd.metadata[item])
-    if rd.metadata.get("paragraph"):
-        section_info.append('paragraph: '+rd.metadata["paragraph"])
-        print('   (Section: '+', '.join(section_info)+')')
-        print(rd.metadata["link"])
-        print(rd.page_content)
-
-#llm = ChatOpenAI(model_name="gpt-4", temperature=0)
-
-
-# template = """Use the following pieces of context to answer the question at the end. If you don't know the answer, just say that you don't know, don't try to make up an answer. Keep the answer as concise as possible. 
-# {context}
-# Question: {question}
-# Helpful Answer:"""
-# QA_CHAIN_PROMPT = PromptTemplate.from_template(template)# Run chain
-# qa_chain = RetrievalQA.from_chain_type(
-#     llm,
-#     retriever=vectorstore.as_retriever(search_kwargs={"k": 5}),
-#     return_source_documents=True,
-#     chain_type_kwargs={"prompt": QA_CHAIN_PROMPT}
-# )
-
-#question = "Is probability a class topic?"
-#result = qa_chain({"query": question})
-# Check the result of the query
-
-# Check the source document from where we 
-# for rd in result["source_documents"]:
-#     print(rd)
-# print('\n')
-# print(result["result"])
-# template = """ You are going to be my assistant.
-# Please try to give me the most beneficial answers to my
-# question with reasoning for why they are correct.
-
-#  Question: {input} Answer: """
-# prompt = PromptTemplate(template=template, input_variables=["input"])
-# %%

@@ -10,7 +10,7 @@ In this project we will make the information from the PLATO publications availab
 The whole PlatoPub folder is one git repo (remote: hireck/platochat, private).
 
 * `platochat/` — the chatbot itself: `plato_core.py` (the UI-agnostic core), `plato_api.py` (the FastAPI backend), `plato_chat.py` (the Streamlit UI), and `.env` with the API keys
-* `ingest/` — everything that turns papers into indexed chunks: `latexml_to_markdown.py` and `pdf_to_markdown.py` (source to markdown), `textsplitter.py` (chunking), `reindex_weaviate.py` (chunk and load into Weaviate), plus the paper metadata JSONs. `get_present_papers.py` and `chunk_tex_data_plato.py` are older code from the FAISS days, kept for reference; they still expect to be run from the data directory rather than from the repo.
+* `ingest/` — everything that turns papers into indexed chunks: `latexml_to_markdown.py` and `pdf_to_markdown.py` (source to markdown), `textsplitter.py` (chunking), `reindex_weaviate.py` (chunk and load into Weaviate), plus the paper metadata JSONs. `get_present_papers.py` and `chunk_tex_data_plato.py` are older code from the FAISS days, kept for reference for their markdown and chunking heuristics — the FAISS index itself and the cells that built and queried it are gone; they still expect to be run from the data directory rather than from the repo.
 * `local_site/` — a local copy of the PLATO Pub pages, for developing the chatbot front-end against
 * `Makefile` — the dev runner: `make dev` starts the API and the static site together, `make reindex` rebuilds the Weaviate collection
 
