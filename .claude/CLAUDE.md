@@ -20,7 +20,7 @@ The PLATO chatbot shall be part of the PLAT Pub website. We'll probably want to 
 
 ### Information sources
 
-* platochet_info.md: a short document with high level information about PLATO (from the website, maybe pull it from ther directly in future?) and about the chatbot itself
+* platochat_info.md: a short document with high level information about PLATO (from the website, maybe pull it from ther directly in future?) and about the chatbot itself
 * a full-text RAG index with hybrid retrieval on chunks to answer detailed questions. 
 * a whole-paper level index that lets users search papers by metadata, like author names and publication date
 * maybe later add ESA's PLATO mission website for information about observing proposals and data access
@@ -32,13 +32,13 @@ Figures: We want to have the option to have figures from the paper displayed if 
 ### Data ingestion
 
 The papers are listed on https://platopub.phys.au.dk/about/ads_feed.php . 
-Their complete metadata is then to be collected via the ADS link. There is an ADS_API_KEY in platochat/.env . There was some old code that yielded /Users/hilke/data/plato_data/OneDrive_1_11-03-2024/PLATOChat_papers.json, but this did not include publication dates, and possibly some other fields are missing as well. We wan tto collect all the available information.
+Their complete metadata is then to be collected via the ADS link. There is an ADS_API_KEY in platochat/.env . There was some old code that yielded /Users/hilke/data/plato_data/OneDrive_1_11-03-2024/PLATOChat_papers.json, but this did not include publication dates, and possibly some other fields are missing as well. We want to collect all the available information.
 
 For papers that have an arxiv ID: If the latex source is available, we will process that (ingest/latexml_to_markdown.py), otherwise we will use u-miner to process the pdf (ingest/pdf_to_markdown.py).
 
 Papers that are not on arxiv often have a link to for example the publisher's page where the paper can be downloaded. This will typically be pdf, or maybe html in some cases. We will need to confirm which formats the papers are in, and figure out how we can automatically download them. Typically we will need to find the download link on the page.
 
-Once the chatbot is up and running, it's sources will need to be kept up-to-date. The PLATO Pub list will need to be regularly checked for new papers. (I'll need to check with Mikkel with what frequency the list is updated.) When new papers appear, they need to be processed and added to the chunk index and whole-paper index. The original documents (pdf/latex/html) and the full markdown do not need to remain saved on the server, once processing is complete.
+Once the chatbot is up and running, its sources will need to be kept up-to-date. The PLATO Pub list will need to be regularly checked for new papers. (I'll need to check with Mikkel with what frequency the list is updated.) When new papers appear, they need to be processed and added to the chunk index and whole-paper index. The original documents (pdf/latex/html) and the full markdown do not need to remain saved on the server, once processing is complete.
 
 
 # Communication
