@@ -4,6 +4,7 @@ import re
 import shutil
 import subprocess
 import warnings
+from datetime import date, datetime
 
 
 def _latexml_env():
@@ -39,6 +40,10 @@ _HEADER_RE = re.compile(r"^(#{1,6})\s+(.*\S)\s*$")
 _WRAPPER_TAG_RE = re.compile(
     r"^\s*</?(?:article|section|header|footer|nav)\b[^>]*>\s*$",
     re.IGNORECASE)
+# A line that is nothing but a date, as \today prints it: "(June 21, 2026)",
+# or "21 June 2026" under a class that redefines it.
+_DATE_LINE_RE = re.compile(
+    r"^\s*\(?\s*([A-Z][a-z]+ \d{1,2}, \d{4}|\d{1,2} [A-Z][a-z]+ \d{4})\s*\)?\s*$")
 
 
 def _clean_html(html_path, image_dir, base):
@@ -91,6 +96,49 @@ def _strip_wrapper_tags(markdown):
     lines = [ln for ln in markdown.splitlines()
              if not _WRAPPER_TAG_RE.match(ln)]
     return "\n".join(lines)
+
+
+def _parse_date(text):
+    for fmt in ("%B %d, %Y", "%d %B %Y"):
+        try:
+            return datetime.strptime(text, fmt).date()
+        except ValueError:
+            pass
+    return None
+
+
+def strip_false_dates(markdown, is_false):
+    """Drop front-matter lines that are nothing but a date ``is_false`` rejects.
+
+    A paper whose class prints a date but whose source sets none (A&A, mostly)
+    gets ``\\today`` -- which LaTeXML evaluates when *we* convert, so a 2019
+    paper opens with "(June 21, 2026)". The answering model is told to weigh
+    dates, so that line is not just noise, it is misinformation.
+
+    ``is_false`` takes a ``datetime.date`` and says whether it cannot be the
+    paper's own: the converter asks "did it fall within this conversion run?",
+    the reindexer "is it later than the paper was published?". Only lines
+    before the second heading are looked at (title, authors, date, then
+    "Abstract"), so a date standing alone in the body is never touched.
+    Returns ``(markdown, removed lines)``.
+    """
+    lines = markdown.splitlines()
+    removed = []
+    headings = 0
+    for i, line in enumerate(lines):
+        if _HEADER_RE.match(line):
+            headings += 1
+            if headings == 2:
+                break
+            continue
+        m = _DATE_LINE_RE.match(line)
+        day = _parse_date(m.group(1)) if m else None
+        if day and is_false(day):
+            removed.append(line.strip())
+            lines[i] = None
+    if not removed:
+        return markdown, removed
+    return "\n".join(ln for ln in lines if ln is not None), removed
 
 
 def _collect_images(markdown):
@@ -168,6 +216,8 @@ def latex_to_markdown(tex_path, image_dir=None, keep_html=False,
     tex_path = os.path.abspath(tex_path)
     if not os.path.isfile(tex_path):
         raise FileNotFoundError(tex_path)
+
+    started = date.today()   # see strip_false_dates() at the end
 
     base = os.path.splitext(os.path.basename(tex_path))[0]
     if image_dir is None:
@@ -264,6 +314,11 @@ def latex_to_markdown(tex_path, image_dir=None, keep_html=False,
     proc = run(["pandoc", "--from=html+raw_html", "--to=gfm-raw_html",
                 "--wrap=none", html_path])
     markdown = _strip_wrapper_tags(proc.stdout)
+    # \today, evaluated somewhere between the start of this run and now --
+    # a range rather than one day, because a long conversion can cross
+    # midnight (PlatoSim was written on June 22 and says June 21).
+    markdown, _ = strip_false_dates(
+        markdown, lambda day: started <= day <= date.today())
 
     if not keep_html:
         for path in (xml_path, html_path):

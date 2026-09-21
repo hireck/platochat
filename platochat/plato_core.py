@@ -554,6 +554,29 @@ def _without_title(headers: list[str], title: str) -> list[str]:
     return headers[1:] if n >= 10 and first[:n] == full[:n] else headers
 
 
+# ![alt](path) and [text](url); the alt text may hold escaped brackets, as in
+# LaTeXML's ORCID badges: [![\[Uncaptioned image\]](x1.png)](https://orcid...).
+_MD_IMAGE_RE = re.compile(r"!\[(?:\\.|[^\]\\])*\]\([^)]*\)")
+_MD_LINK_RE  = re.compile(r"\[((?:\\.|[^\]\\])*)\]\([^)]*\)")
+
+
+def _snippet(text: str, limit: int = 60) -> str:
+    """The opening of a passage as one plain line, for a passage with no section.
+
+    The sources line is itself markdown, so raw passage text cannot go into it
+    as it stands: a blank line ends the citation and starts a new paragraph, a
+    '#' starts a heading in the middle of it. Images go, links keep their
+    text, heading markers go, and all whitespace becomes single spaces.
+    """
+    text = _MD_IMAGE_RE.sub("", text)
+    text = _MD_LINK_RE.sub(r"\1", text)
+    text = re.sub(r"^\s*#+\s+", "", text, flags=re.M)
+    text = " ".join(text.split())
+    if len(text) <= limit:
+        return text
+    return text[:limit].rsplit(" ", 1)[0] + "…"
+
+
 def build_sources_text(docs: list, source_numbers: list[str]) -> str:
     no_refs = (
         "_The information presented here does not explicitly reference the "
@@ -572,7 +595,7 @@ def build_sources_text(docs: list, source_numbers: list[str]) -> str:
         section = (
             "Section: " + ", ".join(headers)
             if headers
-            else props["page_content"][:60] + "…"
+            else _snippet(props["page_content"])
         )
         # The title links to the paper's ADS page, the same place the PLATO-Pub
         # list sends people; from there they reach the publisher through their

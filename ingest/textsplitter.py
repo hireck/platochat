@@ -177,9 +177,18 @@ def _estimate_tokens(text: str) -> int:
 # optional prefix absorbs section numbering -- "9 References and citations",
 # "VIII Acknowledgments" -- while the anchor keeps "9.3 The list of references"
 # and "9.1 Cross-referencing", which are about citing rather than citations.
+#
+# Keyword blocks ("Key Words.:", "keywords:", "Index Terms:") go too. As a
+# chunk of their own they are a bare list of terms a dozen tokens long, and
+# BM25 favours short documents: a query containing "asteroseismology" would
+# pull in keyword lists that answer nothing. In MNRAS papers LaTeXML also
+# leaves template debris there, false dates included -- "pubyear: 2015" on a
+# 2021 paper. These must be the whole heading, give or take punctuation, so
+# that a real section called "Keyword search in the catalogue" survives.
 DROP_SECTIONS = re.compile(
     r"\s*(?:(?:[IVXLC]+|[A-Z]|\d+)(?:\.\d+)*[.)]?\s+)?"
-    r"(references|bibliography|acknowledge?ments?)\b",
+    r"(?:(?:references|bibliography|acknowledge?ments?)\b"
+    r"|(?:key\s*words?|index\s+terms)\s*[.:]*\s*$)",
     re.I,
 )
 

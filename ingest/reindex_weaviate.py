@@ -46,10 +46,11 @@ import re
 import statistics
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from textsplitter import DROP_SECTIONS, split_markdown_packed  # noqa: E402
+from latexml_to_markdown import strip_false_dates  # noqa: E402
 
 DEFAULT_MD_DIR   = os.environ.get(
     "PLATO_MD_DIR", "/Users/hilke/data/plato_data/plato_markdown"
@@ -59,15 +60,29 @@ DEFAULT_METADATA = os.path.join(
 )
 DEFAULT_MODEL    = os.environ.get("PLATO_EMBED_MODEL", "BAAI/bge-m3")
 
-# Header levels to split on. Papers converted from LaTeX/PDF nest to #####,
-# and every level that starts a section should start a chunk.
-HEADERS = [("#", "h1"), ("##", "h2"), ("###", "h3"), ("####", "h4"), ("#####", "h5")]
+# Header levels to split on: all six. Papers converted from LaTeX/PDF nest to
+# #####, and LaTeXML writes the unnumbered front- and back-matter blocks as
+# ###### -- "Abstract", "Key Words.:", "Acknowledgements." (the only level-6
+# headings in the corpus, checked 2026-09-21). Left unsplit, the abstract had no
+# section name for the sources line to show, and the acknowledgements rode
+# along inside the last section's chunks instead of being dropped.
+HEADERS = [("#", "h1"), ("##", "h2"), ("###", "h3"), ("####", "h4"), ("#####", "h5"),
+           ("######", "h6")]
 
 # A markdown file must contain at least this share of its paper's title words
 # near the top, or it is taken for the wrong document. Measured on the corpus:
 # real papers score 0.92-1.0, the wrongly converted author guide scored 0.0.
 TITLE_CHECK_MIN = 0.5
 TITLE_CHECK_CHARS = 8000   # A&A papers open with a long affiliation block
+
+# A date standing alone in a paper's front matter that is this much later than
+# the paper's publication is not the paper's: it is LaTeXML's \today, i.e. the
+# day we converted it. The converter strips these now; this catches markdown
+# converted before it did. The slack is there because ADS dates are only good
+# to the month -- and errs harmlessly either way: a false date that survives is
+# within a month of the true one, a true date that goes was redundant with
+# `pubdate`.
+FALSE_DATE_SLACK = timedelta(days=31)
 
 
 def chunk_id_for(bibcode: str, n: int) -> str:
@@ -122,6 +137,7 @@ def build_chunks(md_dir: str, metadata_path: str, max_tokens: int, overlap: int,
     out: list[dict] = []
     unlisted: list[str] = []
     wrong_content: list[str] = []
+    false_dates: list[str] = []
     seen: dict[str, str] = {}
 
     for fn in md_files:
@@ -146,6 +162,12 @@ def build_chunks(md_dir: str, metadata_path: str, max_tokens: int, overlap: int,
         seen[bibcode] = doc_id
         if doc_id != bibcode:
             print(f"  {doc_id} is indexed under its current bibcode, {bibcode}")
+
+        if meta.get("date"):
+            latest = datetime.fromisoformat(meta["date"][:10]).date() + FALSE_DATE_SLACK
+            markdown, gone = strip_false_dates(markdown, lambda day: day > latest)
+            if gone:
+                false_dates.append(f"{doc_id} {' '.join(gone)}")
 
         pieces = split_markdown_packed(
             markdown,
@@ -187,6 +209,9 @@ def build_chunks(md_dir: str, metadata_path: str, max_tokens: int, overlap: int,
                 "embed": embedding_text(title, piece.header_path(), piece.content),
             })
 
+    if false_dates:
+        print(f"  {len(false_dates)} conversion date(s) removed from front matter: "
+              f"{'; '.join(false_dates)}")
     if unlisted:
         print(f"  ! {len(unlisted)} markdown file(s) left out, their paper is not on "
               f"the PLATO-Pub list: {', '.join(unlisted)}")
@@ -272,7 +297,8 @@ def main() -> int:
     ap.add_argument("--no-title-check", action="store_true",
                     help="index a markdown file even if its paper's title is not in it")
     ap.add_argument("--keep-references", action="store_true",
-                    help="index bibliographies and acknowledgements too (default: skip them)")
+                    help="index bibliographies, acknowledgements and keyword blocks too "
+                         "(default: skip them)")
     ap.add_argument("--batch-size", type=int, default=16, help="embedding batch (default: 16)")
     ap.add_argument("--dry-run", action="store_true",
                     help="chunk and report, touch neither the model nor Weaviate")
@@ -296,7 +322,7 @@ def main() -> int:
     drop_sections = None if args.keep_references else DROP_SECTIONS
     print(f"Chunking {args.md_dir} …")
     if drop_sections:
-        print("  skipping References / Bibliography / Acknowledgements sections")
+        print("  skipping References / Bibliography / Acknowledgements / Keywords sections")
     chunks = build_chunks(args.md_dir, args.metadata, args.max_tokens, args.overlap,
                           args.min_tokens, args.atomic_max_tokens, drop_sections,
                           count_tokens, title_check=not args.no_title_check)
