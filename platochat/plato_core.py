@@ -2,8 +2,9 @@
 PLATO chatbot — core RAG pipeline (UI-agnostic).
 
 This module holds everything the chatbot needs to turn a user question into a
-grounded, cited answer: configuration, prompts, model loading, retrieval +
-rerank, the routing agent, and the citation/sources formatting. It contains NO
+grounded, cited answer: configuration, prompts, model loading, hybrid
+retrieval (vector + BM25) and rerank, the routing agent, and the
+citation/sources formatting. It contains NO
 Streamlit (or any other UI) code, so it can be driven from:
 
     - the FastAPI service in ``plato_api.py`` (the web UI), or
@@ -107,7 +108,19 @@ EMBED_DEVICE         = os.environ.get("PLATO_EMBED_DEVICE") or _best_device()
 WEAVIATE_COLLECTION  = os.environ.get("PLATO_COLLECTION", "PLATO")
 
 HISTORY_WINDOW       = 4       # previous messages folded into the prompt
-RETRIEVAL_LIMIT      = 20      # candidates fetched from Weaviate
+# Candidates fetched per retriever. Vector and BM25 run as separate queries
+# whose results are unioned, so the rerank pool is up to 2x this, less overlap.
+# The searches themselves are nearly free -- a local HNSW lookup and an
+# inverted-index lookup. What this number costs is the cross-encoder, which
+# scores every candidate against a ~512-token chunk and dominates the latency
+# of retrieve_docs. Hence 15 rather than the 20 that vector-only search used.
+RETRIEVAL_LIMIT      = 15
+# BM25 is pinned to the prose properties. Left unset, Weaviate scores every
+# TEXT property in the schema -- including parent_doc and link, which are bare
+# identifiers, and authors/journal, where one surname colliding with a query
+# word drags in a researcher's whole bibliography. title is boosted: a chunk
+# from a paper that is *about* the query term beats a passing mention of it.
+BM25_PROPERTIES      = ["page_content", "title^2", "section_headers"]
 RERANK_TOP_K         = 7       # top documents after cross-encoder reranking
 RERANK_FALLBACK_K    = 2       # fallback below the relevance threshold
 # Minimum cross-encoder score for a candidate to count as relevant. NOTE the
@@ -179,7 +192,7 @@ replying to the user.
 Sources available:
   - platochat_info: A description of the chatbot itself and some general infomation about PLAT and PLATO-Pub from the PLATO-pub website. Use when the
     user asks about the bot itself or its immediate context.
-  - plato_publications: a searchable index over the published articles on ESO's PLATO mission. Use for all technical or scientific questions.
+  - plato_publications: a searchable index over the published articles on ESA's PLATO mission. Use for all technical or scientific questions.
 
 You may select neither, one, or both. If the user message is purely
 conversational (greeting, thanks, a clarification about the previous answer)
@@ -286,6 +299,32 @@ def _doc_summary(doc, extra: dict | None = None) -> dict:
     return out
 
 
+def _union(vector_hits: list, bm25_hits: list) -> tuple[list, dict]:
+    """Merge both candidate lists, deduped by UUID, recording who found what.
+
+    Deliberately no fused score (no RRF, no alpha): the cross-encoder below
+    rescores every candidate from scratch, so a blended rank would be computed
+    and then discarded microseconds later. The union's only job is to decide
+    which candidates reach the reranker, and taking it whole is what keeps a
+    chunk that one retriever ranked first and the other never saw -- precisely
+    the case hybrid search exists for, and the one a fused list truncated at
+    `limit` can still drop.
+
+    found_by is for the traces, not for ranking: it is how we tell whether BM25
+    is earning the rerank budget it costs.
+    """
+    merged, found_by = [], {}
+    for label, hits in (("vector", vector_hits), ("bm25", bm25_hits)):
+        for doc in hits:
+            key = str(doc.uuid)
+            if key in found_by:
+                found_by[key].append(label)
+            else:
+                found_by[key] = [label]
+                merged.append(doc)
+    return merged, found_by
+
+
 def retrieve_docs(query: str) -> list:
     query_vector = vectorize(query)
 
@@ -296,17 +335,47 @@ def retrieve_docs(query: str) -> list:
             limit=RETRIEVAL_LIMIT,
             return_metadata=wq.MetadataQuery(distance=True),
         )
-        retrieved = response.objects
+        vector_hits = response.objects
         vs_obs.update(output={
-            "n_candidates": len(retrieved),
+            "n_candidates": len(vector_hits),
             "candidates": [
                 _doc_summary(d, {"distance": getattr(d.metadata, "distance", None)})
-                for d in retrieved
+                for d in vector_hits
             ],
         })
 
+    # Lexical half of the hybrid. bge-m3 embeds camera designations (N-CAM,
+    # F-CAM), ESA document numbers, star identifiers and author names into
+    # rough neighbourhoods rather than matching them; BM25 matches them
+    # exactly, which is most of what it is here for.
+    with langfuse_client.start_as_current_observation(name="bm25-search") as bm_obs:
+        bm_obs.update(input={"query": query, "limit": RETRIEVAL_LIMIT,
+                             "properties": BM25_PROPERTIES})
+        response = chunks_collection.query.bm25(
+            query=query,
+            query_properties=BM25_PROPERTIES,
+            limit=RETRIEVAL_LIMIT,
+            return_metadata=wq.MetadataQuery(score=True),
+        )
+        bm25_hits = response.objects
+        bm_obs.update(output={
+            "n_candidates": len(bm25_hits),
+            "candidates": [
+                _doc_summary(d, {"score": getattr(d.metadata, "score", None)})
+                for d in bm25_hits
+            ],
+        })
+
+    retrieved, found_by = _union(vector_hits, bm25_hits)
+
     with langfuse_client.start_as_current_observation(name="rerank") as rr_obs:
-        rr_obs.update(input={"query": query, "n_candidates": len(retrieved)})
+        rr_obs.update(input={
+            "query":        query,
+            "n_candidates": len(retrieved),
+            "n_vector":     len(vector_hits),
+            "n_bm25":       len(bm25_hits),
+            "n_overlap":    sum(1 for v in found_by.values() if len(v) > 1),
+        })
         cross_inp    = [[query, d.properties["page_content"]] for d in retrieved]
         cross_scores = cross_encoder.predict(cross_inp)
 
@@ -323,7 +392,11 @@ def retrieve_docs(query: str) -> list:
         rr_obs.update(output={
             "n_selected":    len(reranked),
             "fallback_used": fallback,
-            "selected":      [_doc_summary(d, {"score": float(s)}) for s, d in reranked],
+            "selected":      [
+                _doc_summary(d, {"score":    float(s),
+                                 "found_by": found_by[str(d.uuid)]})
+                for s, d in reranked
+            ],
         })
         return [d for _, d in reranked]
 
