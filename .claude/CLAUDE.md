@@ -36,10 +36,25 @@ Their complete metadata is then to be collected via the ADS link. There is an AD
 
 For papers that have an arxiv ID: If the latex source is available, we will process that (ingest/latexml_to_markdown.py), otherwise we will use u-miner to process the pdf (ingest/pdf_to_markdown.py).
 
-Papers that are not on arxiv often have a link to for example the publisher's page where the paper can be downloaded. This will typically be pdf, or maybe html in some cases. We will need to confirm which formats the papers are in, and figure out how we can automatically download them. Typically we will need to find the download link on the page.
+Papers that are not on arxiv often have a link to for example the publisher's page where the paper can be downloaded. This will typically be pdf, or maybe html in some cases. We will need to confirm which formats the papers are in, and figure out how we can automatically download them. Typically we will need to find the download link on the page. Some of these papers will be pay-walled. Typically, the university has access to these papers, as they pay for them through a deal with the publisher. And users will typically have access too, through their own university. The chatbot will provide links to the original papers in their original location. Unpublished materials, such as internal documents will not be included. The chatbot will be public facing.
 
 Once the chatbot is up and running, its sources will need to be kept up-to-date. The PLATO Pub list will need to be regularly checked for new papers. (I'll need to check with Mikkel with what frequency the list is updated.) When new papers appear, they need to be processed and added to the chunk index and whole-paper index. The original documents (pdf/latex/html) and the full markdown do not need to remain saved on the server, once processing is complete.
 
+Papers that are dropped from the list (e.g. arxiv-only preprints that have been replaced with their published version) should ideally also be dropped from the index.
+
+### Robustness and maintainablity
+
+We'll need to monitor the chatbot, so we can fix it if something breaks, e.g. with PM2 and UpTimeRobot.
+
+We rely on the LLMs from the university's AI Lab. If they change the version they serve, our chatbot breaks.
+
+We may want to switch out Weaviate against Postgress with pgvector, as the latter as less likely to disappear without a clear alternative. Similarly we should review where else we rely on non-standard packages that might become a problem for maintenace in the coming decade or so.
+
+For LLM observability, we use LangFuse, but this may also be a risky dependency.
+
+## MCP Server
+
+Many astronomers use tools like Claude code and cowork to explore the literature, write code for processing data, and write their papers. Making full-text index and paper index search available via mcp, will allow researchers to access up-to-date processed information from inside their own workflow, using their own LLM (subscription). 
 
 # Communication
 Explain everything in plain English to a linguist who has experience with writing python scripts for applications of NLP techniques, data processing, exploration, QA. This was mostly prototyping, rather than production. I have some half-knowledge about software development and UX from working in a startup in cross-functional teams, and would like to keep learning.
