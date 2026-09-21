@@ -22,6 +22,19 @@ connecting to Weaviate at all.
 Keep the model here in step with ``PLATO_EMBED_MODEL`` in plato_core.py: a
 query embedded by one model cannot be compared against a corpus embedded by
 another.
+
+Paper metadata comes from papers.json (written by fetch_metadata.py), which
+mirrors the live PLATO-Pub list. Three consequences:
+
+* Every chunk carries its paper's publication date, so the chatbot can show it
+  and prefer recent sources.
+* A markdown file whose paper is not on the list (any more) is left out of the
+  index. A file named after an *old* bibcode of a listed paper -- a preprint
+  that has since been published -- is matched through the record's aliases.
+* A markdown file that does not contain its own paper's title is left out and
+  reported: it means the conversion picked up the wrong file (this happened --
+  an arXiv bundle's copy of the MNRAS author guide got converted in place of
+  the paper).
 """
 
 from __future__ import annotations
@@ -29,9 +42,11 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import statistics
 import sys
 import time
+from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from textsplitter import DROP_SECTIONS, split_markdown_packed  # noqa: E402
@@ -40,7 +55,7 @@ DEFAULT_MD_DIR   = os.environ.get(
     "PLATO_MD_DIR", "/Users/hilke/data/plato_data/plato_markdown"
 )
 DEFAULT_METADATA = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "PLATOChat_papers.json"
+    os.path.dirname(os.path.abspath(__file__)), "papers.json"
 )
 DEFAULT_MODEL    = os.environ.get("PLATO_EMBED_MODEL", "BAAI/bge-m3")
 
@@ -48,8 +63,42 @@ DEFAULT_MODEL    = os.environ.get("PLATO_EMBED_MODEL", "BAAI/bge-m3")
 # and every level that starts a section should start a chunk.
 HEADERS = [("#", "h1"), ("##", "h2"), ("###", "h3"), ("####", "h4"), ("#####", "h5")]
 
-# Metadata fields copied from PLATOChat_papers.json onto every chunk.
-META_FIELDS = ["title", "authors", "journal", "arXiv ID"]
+# A markdown file must contain at least this share of its paper's title words
+# near the top, or it is taken for the wrong document. Measured on the corpus:
+# real papers score 0.92-1.0, the wrongly converted author guide scored 0.0.
+TITLE_CHECK_MIN = 0.5
+TITLE_CHECK_CHARS = 8000   # A&A papers open with a long affiliation block
+
+
+def chunk_id_for(bibcode: str, n: int) -> str:
+    """'2021A&A...653A..98M#0017' -- the 17th chunk of that paper.
+
+    Built from the paper and the position within it, never from a counter
+    running over the whole corpus: adding or removing one paper must not
+    renumber the others. The id of a chunk changes only if its own paper's
+    markdown or the chunking parameters change.
+    """
+    return f"{bibcode}#{n:04d}"
+
+
+def _words(text: str) -> set[str]:
+    return set(re.sub(r"[^a-z0-9]+", " ", text.lower()).split())
+
+
+def title_share(title: str, markdown: str) -> float:
+    """Share of the title's longer words found near the top of the markdown."""
+    wanted = {w for w in _words(title) if len(w) > 3}
+    if not wanted:
+        return 1.0
+    return len(wanted & _words(markdown[:TITLE_CHECK_CHARS])) / len(wanted)
+
+
+def load_papers(metadata_path: str) -> tuple[dict, dict]:
+    """papers.json as ``(records by bibcode, any known bibcode -> current one)``."""
+    with open(metadata_path, encoding="utf-8") as fh:
+        papers = json.load(fh)["papers"]
+    aliases = {a: bib for bib, rec in papers.items() for a in rec.get("aliases", [bib])}
+    return papers, aliases
 
 
 def embedding_text(title: str, header_path: str, content: str) -> str:
@@ -65,57 +114,86 @@ def embedding_text(title: str, header_path: str, content: str) -> str:
 
 
 def build_chunks(md_dir: str, metadata_path: str, max_tokens: int, overlap: int,
-                 min_tokens: int, atomic_max: int, drop_sections, count_tokens) -> list[dict]:
-    with open(metadata_path) as fh:
-        papers = json.load(fh)
+                 min_tokens: int, atomic_max: int, drop_sections, count_tokens,
+                 title_check: bool = True) -> list[dict]:
+    papers, aliases = load_papers(metadata_path)
 
     md_files = sorted(f for f in os.listdir(md_dir) if f.endswith(".md"))
     out: list[dict] = []
-    skipped: list[str] = []
-    # chunk_number is the citation handle: the answering model cites it as
-    # <cite>N</cite> and build_sources_text() looks it up. It must therefore be
-    # unique across the whole collection, not per paper.
-    chunk_number = 1
+    unlisted: list[str] = []
+    wrong_content: list[str] = []
+    seen: dict[str, str] = {}
 
     for fn in md_files:
         doc_id = fn[:-3]
-        meta = papers.get(doc_id)
-        if meta is None:
-            skipped.append(doc_id)
+        bibcode = aliases.get(doc_id)
+        if bibcode is None:
+            unlisted.append(doc_id)
             continue
+        if bibcode in seen:
+            print(f"  ! {doc_id} and {seen[bibcode]} are the same paper ({bibcode}); "
+                  f"keeping {seen[bibcode]}")
+            continue
+        meta = papers[bibcode]
 
         with open(os.path.join(md_dir, fn), encoding="utf-8") as fh:
-            pieces = split_markdown_packed(
-                fh.read(),
-                headers_to_split_on=HEADERS,
-                max_tokens=max_tokens,
-                overlap_tokens=overlap,
-                min_tokens=min_tokens,
-                atomic_max_tokens=atomic_max,
-                drop_sections=drop_sections,
-                count_tokens=count_tokens,
-            )
+            markdown = fh.read()
 
         title = meta.get("title") or ""
-        for piece in pieces:
+        if title_check and title_share(title, markdown) < TITLE_CHECK_MIN:
+            wrong_content.append(doc_id)
+            continue
+        seen[bibcode] = doc_id
+        if doc_id != bibcode:
+            print(f"  {doc_id} is indexed under its current bibcode, {bibcode}")
+
+        pieces = split_markdown_packed(
+            markdown,
+            headers_to_split_on=HEADERS,
+            max_tokens=max_tokens,
+            overlap_tokens=overlap,
+            min_tokens=min_tokens,
+            atomic_max_tokens=atomic_max,
+            drop_sections=drop_sections,
+            count_tokens=count_tokens,
+        )
+
+        paper_props = {
+            "title":      title,
+            "authors":    "; ".join(meta.get("author") or []),
+            "short_ref":  meta.get("short_ref") or "",
+            "journal":    meta.get("pub") or "",
+            "year":       int(meta["year"]) if str(meta.get("year") or "").isdigit() else None,
+            # Two forms of the same date: `pubdate` is what people read
+            # ("2024-06", or just "2024" when ADS knows no month), `pub_date`
+            # is a real date that Weaviate can filter and sort on.
+            "pubdate":    meta.get("pubdate_display") or "",
+            "pub_date":   (datetime.fromisoformat(meta["date"].replace("Z", "+00:00"))
+                           if meta.get("date") else None),
+            "parent_doc": bibcode,
+            "link":       meta.get("ads_url") or "",
+            "doi":        (meta.get("doi") or [""])[0],
+            "arxiv_id":   meta.get("arxiv_id") or "",
+        }
+        for n, piece in enumerate(pieces, start=1):
             out.append({
                 "properties": {
-                    "title":           title,
-                    "authors":         meta.get("authors") or "",
-                    "journal":         meta.get("journal") or "",
+                    **paper_props,
                     "page_content":    piece.content,
                     "section_headers": piece.headers,
-                    "parent_doc":      doc_id,
-                    "chunk_number":    chunk_number,
-                    "link":            meta.get("arXiv ID") or "",
+                    "chunk_id":        chunk_id_for(bibcode, n),
+                    "chunk_index":     n,
                 },
                 "embed": embedding_text(title, piece.header_path(), piece.content),
             })
-            chunk_number += 1
 
-    if skipped:
-        print(f"  ! {len(skipped)} markdown file(s) had no metadata entry, skipped: "
-              f"{', '.join(skipped[:5])}{' …' if len(skipped) > 5 else ''}")
+    if unlisted:
+        print(f"  ! {len(unlisted)} markdown file(s) left out, their paper is not on "
+              f"the PLATO-Pub list: {', '.join(unlisted)}")
+    if wrong_content:
+        print(f"  !! {len(wrong_content)} markdown file(s) LEFT OUT because they do not "
+              f"contain their paper's title -- check the conversion: "
+              f"{', '.join(wrong_content)}")
     return out
 
 
@@ -150,12 +228,19 @@ def recreate_collection(client, name: str, dim: int):
         properties=[
             Property(name="title",           data_type=DataType.TEXT),
             Property(name="authors",         data_type=DataType.TEXT),
+            Property(name="short_ref",       data_type=DataType.TEXT),
             Property(name="journal",         data_type=DataType.TEXT),
+            Property(name="year",            data_type=DataType.INT),
+            Property(name="pubdate",         data_type=DataType.TEXT),
+            Property(name="pub_date",        data_type=DataType.DATE),
             Property(name="page_content",    data_type=DataType.TEXT),
             Property(name="section_headers", data_type=DataType.TEXT_ARRAY),
             Property(name="parent_doc",      data_type=DataType.TEXT),
-            Property(name="chunk_number",    data_type=DataType.INT),
+            Property(name="chunk_id",        data_type=DataType.TEXT),
+            Property(name="chunk_index",     data_type=DataType.INT),
             Property(name="link",            data_type=DataType.TEXT),
+            Property(name="doi",             data_type=DataType.TEXT),
+            Property(name="arxiv_id",        data_type=DataType.TEXT),
         ],
         vectorizer_config=Configure.Vectorizer.none(),
         vector_index_config=Configure.VectorIndex.hnsw(
@@ -184,6 +269,8 @@ def main() -> int:
     # evil. 8192 is bge-m3's; lower it if you switch to a shorter-context model.
     ap.add_argument("--atomic-max-tokens", type=int, default=8192,
                     help="ceiling for tables, which are never word-split (default: 8192)")
+    ap.add_argument("--no-title-check", action="store_true",
+                    help="index a markdown file even if its paper's title is not in it")
     ap.add_argument("--keep-references", action="store_true",
                     help="index bibliographies and acknowledgements too (default: skip them)")
     ap.add_argument("--batch-size", type=int, default=16, help="embedding batch (default: 16)")
@@ -212,7 +299,7 @@ def main() -> int:
         print("  skipping References / Bibliography / Acknowledgements sections")
     chunks = build_chunks(args.md_dir, args.metadata, args.max_tokens, args.overlap,
                           args.min_tokens, args.atomic_max_tokens, drop_sections,
-                          count_tokens)
+                          count_tokens, title_check=not args.no_title_check)
     if not chunks:
         print("No chunks produced — nothing to index.", file=sys.stderr)
         return 1
@@ -244,6 +331,7 @@ def main() -> int:
     print(f"  embedded {len(chunks)} chunks in {time.time() - t0:.0f}s ({dim} dims)")
 
     import weaviate
+    from weaviate.util import generate_uuid5
 
     client = weaviate.connect_to_local()
     try:
@@ -259,9 +347,15 @@ def main() -> int:
         collection = recreate_collection(client, args.collection, dim)
 
         print(f"  inserting {len(chunks)} objects …")
+        # The UUID is derived from chunk_id, so inserting a chunk that is
+        # already there replaces it rather than adding a twin. Nothing relies on
+        # that yet (we rebuild from scratch), but adding papers one at a time
+        # will.
         with collection.batch.dynamic() as batch:
             for chunk, vector in zip(chunks, vectors):
-                batch.add_object(properties=chunk["properties"], vector=vector.tolist())
+                props = {k: v for k, v in chunk["properties"].items() if v is not None}
+                batch.add_object(properties=props, vector=vector.tolist(),
+                                 uuid=generate_uuid5(props["chunk_id"]))
 
         failed = collection.batch.failed_objects
         if failed:

@@ -71,6 +71,15 @@
 			bubble.appendChild(details);
 		}
 
+		// The sources link out to ADS and the publishers. The conversation lives
+		// only in this page's memory, so following a link in the same tab would
+		// lose it -- open them in a new one.
+		var links = bubble.querySelectorAll("a[href]");
+		for (var i = 0; i < links.length; i++) {
+			links[i].target = "_blank";
+			links[i].rel = "noopener noreferrer";
+		}
+
 		log.appendChild(row);
 		typeset(bubble);
 		log.scrollTop = log.scrollHeight;

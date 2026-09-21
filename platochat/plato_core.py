@@ -23,6 +23,7 @@ typeset it.
 import json
 import os
 import re
+from dataclasses import dataclass, field
 
 from dotenv import load_dotenv
 load_dotenv()  # must run before Langfuse imports so credentials are available
@@ -152,14 +153,22 @@ The user message may be accompanied by:
     Chat and its sources, plus general information about the mission and
     useful links from the public PLATO-Pub website, and/or
   - passages retrieved from the index of published articles on ESA's PLATO
-    mission, each with a `chunk_number` in its metadata.
+    mission, each preceded by its metadata: a `passage` number, the paper it
+    comes from, and when that paper was published.
 
 If retrieved passages are provided, cite each passage you use by wrapping its
-chunk_number in <cite>...</cite> tags, e.g. `<cite>23</cite>` --- only the
-number inside the tags, and each cited chunk number in its own pair of tags.
+passage number in <cite>...</cite> tags, e.g. `<cite>3</cite>` --- only the
+number inside the tags, and each cited passage number in its own pair of tags.
 Do not cite the information about the chatbot and website. Do not list
 sources at the end; citations are inline only. Do not fabricate citations.
 If NO retrieved passages are provided, do not emit any <cite> tags.
+
+PLATO's design and schedule have changed over the years (number of cameras,
+field of view, launch date, observing fields, ...), so an older paper can be
+out of date. Check the `published` date of every passage. Where passages
+disagree, rely on the most recent one, and say that earlier papers gave a
+different figure. When you state something that may have changed since it was
+written, say how old your source is, e.g. "as of Nascimbeni et al. (2022)".
 
 Format the answer as markdown. Use the LaTeX notation for Math.
 """
@@ -274,7 +283,15 @@ chunks_collection = weaviate_client.collections.get(WEAVIATE_COLLECTION)
 # Retrieval helpers
 # ---------------------------------------------------------------------------
 
-META_FIELDS = ["chunk_number", "title", "section_headers", "parent_doc", "link"]
+# How a passage is identified, in three places that must not be confused:
+#   chunk_id   stored in Weaviate, e.g. "2021A&A...653A..98M#0017". Stable: it
+#              depends only on the paper and the position in it. Used for
+#              dedup, traces and the eval -- never shown to the model.
+#   passage    1, 2, 3 ... in the order the passages of *this request* were
+#              handed to the model. This is what it cites. Small numbers are
+#              easy to copy correctly; a bibcode full of dots and ampersands
+#              is not.
+#   [1], [2]   what the user sees, numbered by first use in the answer.
 
 
 def vectorize(text: str):
@@ -290,8 +307,9 @@ def _doc_summary(doc, extra: dict | None = None) -> dict:
     """Small JSON-friendly view of a doc for Langfuse traces."""
     props = doc.properties
     out = {
-        "chunk_number":    props.get("chunk_number"),
+        "chunk_id":        props.get("chunk_id"),
         "title":           props.get("title"),
+        "pubdate":         props.get("pubdate"),
         "section_headers": props.get("section_headers"),
     }
     if extra:
@@ -325,7 +343,13 @@ def _union(vector_hits: list, bm25_hits: list) -> tuple[list, dict]:
     return merged, found_by
 
 
-def retrieve_docs(query: str) -> list:
+def fetch_candidates(query: str) -> tuple[list, dict]:
+    """First stage: the vector and BM25 searches, unioned.
+
+    Returns ``(candidates, found_by)``. Separate from :func:`rerank` so that
+    eval/run_eval.py can tell a paper the searches never surfaced from one the
+    reranker then threw away -- two failures with different fixes.
+    """
     query_vector = vectorize(query)
 
     with langfuse_client.start_as_current_observation(name="vector-search") as vs_obs:
@@ -366,14 +390,22 @@ def retrieve_docs(query: str) -> list:
             ],
         })
 
-    retrieved, found_by = _union(vector_hits, bm25_hits)
+    return _union(vector_hits, bm25_hits)
+
+
+def rerank(query: str, retrieved: list, found_by: dict) -> list:
+    """Second stage: cross-encoder scores every candidate; keep the best few."""
+    if not retrieved:
+        return []
 
     with langfuse_client.start_as_current_observation(name="rerank") as rr_obs:
+        n_by = {label: sum(1 for v in found_by.values() if label in v)
+                for label in ("vector", "bm25")}
         rr_obs.update(input={
             "query":        query,
             "n_candidates": len(retrieved),
-            "n_vector":     len(vector_hits),
-            "n_bm25":       len(bm25_hits),
+            "n_vector":     n_by["vector"],
+            "n_bm25":       n_by["bm25"],
             "n_overlap":    sum(1 for v in found_by.values() if len(v) > 1),
         })
         cross_inp    = [[query, d.properties["page_content"]] for d in retrieved]
@@ -401,13 +433,26 @@ def retrieve_docs(query: str) -> list:
         return [d for _, d in reranked]
 
 
-def format_docs(docs: list) -> str:
+def retrieve_docs(query: str) -> list:
+    return rerank(query, *fetch_candidates(query))
+
+
+def format_docs(docs: list, first_number: int = 1) -> str:
+    """Passages as the model sees them, numbered from ``first_number``."""
     if not docs:
         return "No relevant documents were found."
     parts = []
-    for d in docs:
-        meta = {f: d.properties.get(f) for f in META_FIELDS}
-        parts.append(json.dumps(meta, indent=4) + "\n" + d.properties["page_content"])
+    for number, d in enumerate(docs, start=first_number):
+        props = d.properties
+        meta = {
+            "passage":   number,
+            "paper":     props.get("short_ref"),
+            "published": props.get("pubdate"),
+            "title":     props.get("title"),
+            "section":   props.get("section_headers"),
+        }
+        parts.append(json.dumps(meta, indent=4, ensure_ascii=False)
+                     + "\n" + props["page_content"])
     return "\n\n".join(parts)
 
 
@@ -456,6 +501,32 @@ def used_sources(answer: str) -> tuple[str, list[str]]:
     return answer, numbers
 
 
+def cited_docs(docs: list, source_numbers: list[str]) -> list:
+    """The docs behind the cited passage numbers; None where a number is bogus."""
+    out = []
+    for num in source_numbers:
+        n = int(num) if num.isdigit() else 0
+        out.append(docs[n - 1] if 1 <= n <= len(docs) else None)
+    return out
+
+
+def _without_title(headers: list[str], title: str) -> list[str]:
+    """Section path minus the paper's own title.
+
+    The outermost header of a converted paper is its title, which the sources
+    line already shows -- and in the markdown it often drags a footnote along
+    ("The all-sky PLATO input catalogue^(†)thanks: The catalogue described in
+    this article is only available ..."). Matched on a shared opening, because
+    the header may be the title cut short ("Transit least-squares survey") or
+    the title with debris after it.
+    """
+    if not headers:
+        return headers
+    first, full = headers[0].casefold(), title.casefold()
+    n = min(len(first), len(full), 25)
+    return headers[1:] if n >= 10 and first[:n] == full[:n] else headers
+
+
 def build_sources_text(docs: list, source_numbers: list[str]) -> str:
     no_refs = (
         "_The information presented here does not explicitly reference the "
@@ -464,20 +535,37 @@ def build_sources_text(docs: list, source_numbers: list[str]) -> str:
     )
     if not docs or not source_numbers:
         return no_refs
-    num2doc = {str(d.properties["chunk_number"]): d for d in docs}
     lines = []
-    for idx, num in enumerate(source_numbers, start=1):
-        doc = num2doc.get(num)
+    for idx, doc in enumerate(cited_docs(docs, source_numbers), start=1):
         if doc is None:
             continue
-        title   = doc.properties.get("title", "Unknown title")
-        headers = doc.properties.get("section_headers")
+        props   = doc.properties
+        title   = props.get("title") or "Unknown title"
+        headers = _without_title(props.get("section_headers") or [], title)
         section = (
             "Section: " + ", ".join(headers)
             if headers
-            else doc.properties["page_content"][:60] + "…"
+            else props["page_content"][:60] + "…"
         )
-        lines.append(f"[{idx}] *{title}* — {section}")
+        # The title links to the paper's ADS page, the same place the PLATO-Pub
+        # list sends people; from there they reach the publisher through their
+        # own institution's access. arXiv is linked directly where it exists,
+        # because that copy is free to read.
+        if props.get("link"):
+            title = f"[{title}]({props['link']})"
+        line = f"[{idx}] {props.get('short_ref') or ''} *{title}*".replace("  ", " ")
+        # The year is already in the short reference; add the month if known.
+        if len(props.get("pubdate") or "") > 4:
+            line += f", published {props['pubdate']}"
+        line += f" — {section}"
+        extra = []
+        if props.get("doi"):
+            extra.append(f"[publisher](https://doi.org/{props['doi']})")
+        if props.get("arxiv_id"):
+            extra.append(f"[arXiv](https://arxiv.org/abs/{props['arxiv_id']})")
+        if extra:
+            line += " (" + " · ".join(extra) + ")"
+        lines.append(line)
     if not lines:
         return no_refs
     return "\n\n".join(lines)
@@ -546,14 +634,14 @@ SEARCH_TOOL_SCHEMA = [
 ]
 
 
-def run_search_tool_call(call: dict, seen_chunks: set) -> tuple[str, list]:
+def run_search_tool_call(call: dict, seen_chunks: set,
+                         first_number: int) -> tuple[str, list]:
     """Execute one model-requested tool call.
 
     Returns ``(tool_message_content, new_docs)``. Passages already handed to the
-    model are filtered out: ``chunk_number`` is a global running counter over the
-    whole corpus (see ``get_present_papers.py``), so it is a safe dedup key
-    across searches, and re-sending a chunk would waste context and let the same
-    source be cited under two numbers.
+    model are filtered out by ``chunk_id``: re-sending a chunk would waste
+    context and let the same source be cited under two numbers. The new
+    passages are numbered from ``first_number``, continuing the request's count.
 
     Never raises: a bad tool call is reported back to the model as text so it can
     recover on the next turn rather than taking the request down.
@@ -573,8 +661,8 @@ def run_search_tool_call(call: dict, seen_chunks: set) -> tuple[str, list]:
 
     print(f"[follow-up search] {query!r}")
     _, docs = tool_search_publications(query)
-    fresh = [d for d in docs if d.properties["chunk_number"] not in seen_chunks]
-    seen_chunks.update(d.properties["chunk_number"] for d in fresh)
+    fresh = [d for d in docs if d.properties["chunk_id"] not in seen_chunks]
+    seen_chunks.update(d.properties["chunk_id"] for d in fresh)
 
     if not fresh:
         return (
@@ -584,8 +672,9 @@ def run_search_tool_call(call: dict, seen_chunks: set) -> tuple[str, list]:
 
     return (
         "The following passages were retrieved from the publications. Cite each "
-        "one you use with <cite>N</cite> tags, where N is the chunk_number shown "
-        "in the metadata (e.g. <cite>38</cite>):\n\n" + format_docs(fresh)
+        "one you use with <cite>N</cite> tags, where N is the passage number shown "
+        "in the metadata (e.g. <cite>9</cite>):\n\n"
+        + format_docs(fresh, first_number)
     ), fresh
 
 
@@ -697,6 +786,23 @@ def complete(messages: list[dict], tools: list | None = None) -> tuple[str, list
     return strip_reasoning("".join(parts)), [acc[i] for i in sorted(acc)]
 
 
+@dataclass
+class Answer:
+    """Everything one request produced, not just the two strings the UI shows.
+
+    ``reply`` and ``sources`` are what :func:`answer_question` hands to the
+    front-end. The rest is the working: what the router decided, every passage
+    the model was given (first search and follow-ups, in the order given), and
+    which of those it actually cited. eval/run_eval.py scores on these.
+    """
+
+    reply: str | None = None
+    sources: str | None = None
+    decision: RouterDecision | None = None
+    docs: list = field(default_factory=list)
+    cited: list = field(default_factory=list)
+
+
 def answer_question(
     user_input: str,
     history: list[dict] | None = None,
@@ -724,6 +830,15 @@ def answer_question(
         sources" panel, or ``None`` when no search was run. ``(None, None)`` if
         the model returned an empty answer.
     """
+    answer = answer_question_detailed(user_input, history)
+    return answer.reply, answer.sources
+
+
+def answer_question_detailed(
+    user_input: str,
+    history: list[dict] | None = None,
+) -> Answer:
+    """:func:`answer_question`, returning the full :class:`Answer`."""
     history = history or []
 
     with langfuse_client.start_as_current_observation(name="agent-query") as root_obs:
@@ -760,7 +875,7 @@ def answer_question(
             blocks.append(
                 "The following passages were retrieved from the publications. "
                 "Cite each one you use with <cite>N</cite> tags, where N is the "
-                "chunk_number shown in the metadata (e.g. <cite>38</cite>):\n\n"
+                "passage number shown in the metadata (e.g. <cite>3</cite>):\n\n"
                 + format_docs(retrieved_docs)
             )
         if prev_conv:
@@ -779,7 +894,7 @@ def answer_question(
         # The model may ask for more context instead of answering. Loop until it
         # answers or spends its budget; once the budget is gone we stop offering
         # the tool, which forces a plain answer and terminates the loop.
-        seen_chunks = {d.properties["chunk_number"] for d in retrieved_docs}
+        seen_chunks = {d.properties["chunk_id"] for d in retrieved_docs}
         searches_left = FOLLOWUP_SEARCHES
         raw_answer = ""
 
@@ -802,7 +917,12 @@ def answer_question(
                 fs_obs.update(input={"calls": [c["function"] for c in tool_calls]})
                 n_before = len(retrieved_docs)
                 for call in tool_calls:
-                    tool_content, new_docs = run_search_tool_call(call, seen_chunks)
+                    # retrieved_docs is the request's running passage list:
+                    # a passage's number is its position in it, so follow-up
+                    # passages continue where the last search stopped.
+                    tool_content, new_docs = run_search_tool_call(
+                        call, seen_chunks, first_number=len(retrieved_docs) + 1
+                    )
                     retrieved_docs.extend(new_docs)
                     answer_messages.append({
                         "role": "tool",
@@ -815,16 +935,17 @@ def answer_question(
                 })
             searches_left -= 1
 
+        result = Answer(decision=decision, docs=retrieved_docs)
         if not raw_answer:
-            return None, None
+            return result
 
         # 4. Post-process: rewrite/strip citation tags, build the sources block.
         #    (No Streamlit-specific math rewriting — the browser renders LaTeX.)
         if retrieved_docs:
-            reply, source_numbers = used_sources(raw_answer)
-            sources = "**Sources**\n\n" + build_sources_text(retrieved_docs, source_numbers)
+            result.reply, source_numbers = used_sources(raw_answer)
+            result.sources = "**Sources**\n\n" + build_sources_text(retrieved_docs, source_numbers)
+            result.cited = [d for d in cited_docs(retrieved_docs, source_numbers) if d]
         else:
-            reply = _CITE_RE.sub("", raw_answer)
-            sources = None
+            result.reply = _CITE_RE.sub("", raw_answer)
 
-        return reply, sources
+        return result
