@@ -1,0 +1,329 @@
+[
+  {
+    "id": "cameras-count",
+    "category": "recency",
+    "question": "How many cameras does PLATO have, and how many of them are fast cameras?",
+    "expected_papers": ["2024A&A...681A..18J", "2019A&A...624A.117S", "2020ExA....50...73D", "2021A&A...653A..98M", "2022A&A...658A..31N", "2022A&A...665A..11H", "2023A&A...677A.133M"],
+    "answer_must_match": ["\\b26\\b", "\\b24\\b"],
+    "note": "Outdated source in the corpus: Marcos-Arenal et al. (2014) computes noise for 32 telescopes (the PLATO 2.0 design had 32 normal + 2 fast).",
+    "expect_flag": false
+  },
+  {
+    "id": "launch-date",
+    "category": "recency",
+    "question": "When is PLATO scheduled to launch?",
+    "expected_papers": ["2024A&A...681A..18J", "2024A&A...681A..99B", "2024A&A...683A..78G", "2023A&A...677A.133M", "2023A&A...672A.144C", "2022A&A...658A..31N", "2022A&A...665A..11H", "2022RNAAS...6..248M", "2021A&A...653A..98M", "2019A&A...624A.117S", "2019A&A...627A..71M", "2020ExA....50...73D"],
+    "answer_must_match": ["2026"],
+    "note": "Outdated source in the corpus: Veras et al. (2015) says 'due for launch in 2024'. The router may also answer this from platochat_info alone, which is fine."
+  },
+  {
+    "id": "field-of-view",
+    "category": "recency",
+    "question": "What is the combined field of view of PLATO's normal cameras?",
+    "expected_papers": ["2022A&A...658A..31N", "2022A&A...665A..11H", "2024A&A...681A..18J", "2024A&A...681A..99B"],
+    "answer_must_match": ["2[\\s,.]?132"],
+    "note": "Outdated value 2232 deg2 (34-camera design) in Miglio et al. (2017) and de Almeida et al. (2020)."
+  },
+  {
+    "id": "cadence",
+    "category": "instrument",
+    "question": "What are the readout cadences of the normal and the fast cameras?",
+    "expected_papers": ["2024A&A...681A..18J", "2019A&A...627A..71M", "2019A&A...624A.117S", "2021A&A...653A..98M"],
+    "answer_must_match": ["\\b25\\b", "2\\.5"]
+  },
+  {
+    "id": "pixel-scale",
+    "category": "instrument",
+    "question": "What is PLATO's pixel scale on the sky?",
+    "expected_papers": ["2019A&A...627A..71M", "2021A&A...653A..98M", "2022A&A...658A..31N", "2022MNRAS.516.4432M", "2024A&A...681A..18J", "2014A&A...566A..92M"],
+    "answer_must_match": ["\\b15\\b"]
+  },
+  {
+    "id": "ccd-timeshift",
+    "category": "lookup",
+    "question": "Are the four CCDs of a PLATO camera read out at the same moment, or is there a time offset between them?",
+    "expected_papers": ["2019A&A...624A.117S", "2024A&A...681A..18J"],
+    "answer_must_match": ["6\\.25"]
+  },
+  {
+    "id": "imagettes",
+    "category": "instrument",
+    "question": "What are imagettes, and for which targets are they downloaded?",
+    "expected_papers": ["2019A&A...627A..71M", "2021A&A...653A..98M", "2022A&A...658A..31N", "2022A&A...665A..11H", "2024A&A...681A..18J", "2019A&A...624A.117S"],
+    "answer_must_match": []
+  },
+  {
+    "id": "aspic-size",
+    "category": "lookup",
+    "question": "How many stars does the all-sky PLATO input catalogue contain?",
+    "expected_papers": ["2021A&A...653A..98M"],
+    "answer_must_match": ["2[\\s,.]?675[\\s,.]?539|2\\.[67]\\d* ?million"],
+    "expect_flag": false
+  },
+  {
+    "id": "aspic-gaia",
+    "category": "lookup",
+    "question": "Which Gaia data release was the asPIC built from?",
+    "expected_papers": ["2021A&A...653A..98M"],
+    "answer_must_match": ["DR ?2|Data Release 2"]
+  },
+  {
+    "id": "stellar-samples",
+    "category": "instrument",
+    "question": "How are the PLATO stellar samples P1, P2, P4 and P5 defined?",
+    "expected_papers": ["2021A&A...653A..98M", "2022A&A...658A..31N", "2024A&A...683A..78G"],
+    "answer_must_match": ["(?i)F5"]
+  },
+  {
+    "id": "lops2-where",
+    "category": "identifier",
+    "question": "Where on the sky is LOPS2?",
+    "expected_papers": ["2024CoSka..54b.142D", "2024MNRAS.528.2851M"],
+    "answer_must_match": ["(?i)south"],
+    "note": "An identifier the embedding model has little to go on; mostly a test of the BM25 half."
+  },
+  {
+    "id": "lops2-from-europe",
+    "category": "lookup",
+    "question": "Can the first PLATO long-observation field be followed up with ground-based telescopes in Europe?",
+    "expected_papers": ["2024CoSka..54b.142D"],
+    "answer_must_match": ["(?i)cannot|can ?not|not (be )?(meaningfully )?observ|marginal"]
+  },
+  {
+    "id": "aperture-mask",
+    "category": "lookup",
+    "question": "Which kind of aperture is used for the on-board photometry of P5 stars, and why was it chosen?",
+    "expected_papers": ["2019A&A...627A..71M"],
+    "answer_must_match": ["(?i)binary (mask|aperture)"],
+    "note": "Read the answer: it should say that the binary mask was the one chosen (best compromise between noise and rejecting false positives), not merely list the three mask types that were compared."
+  },
+  {
+    "id": "nsr",
+    "category": "identifier",
+    "question": "What does NSR stand for in the PLATO papers, and what is it used for?",
+    "expected_papers": ["2019A&A...627A..71M", "2019A&A...624A.117S", "2024A&A...681A..18J", "2014A&A...566A..92M", "2022A&A...658A..31N", "2022A&A...665A..11H", "2023A&A...677A.133M"],
+    "answer_must_match": ["(?i)noise[- ]to[- ]signal"]
+  },
+  {
+    "id": "psls",
+    "category": "identifier",
+    "question": "What is PSLS?",
+    "expected_papers": ["2019A&A...624A.117S", "2022A&A...665A..11H"],
+    "answer_must_match": ["(?i)light[- ]?curve simulator"]
+  },
+  {
+    "id": "platosim",
+    "category": "lookup",
+    "question": "What is PlatoSim and what does it simulate?",
+    "expected_papers": ["2024A&A...681A..18J", "2014A&A...566A..92M"],
+    "answer_must_match": []
+  },
+  {
+    "id": "earth-yield",
+    "category": "lookup",
+    "question": "How many Earth-sized planets in the habitable zone of Sun-like stars is PLATO expected to detect?",
+    "expected_papers": ["2022A&A...665A..11H", "2023A&A...677A.133M"],
+    "answer_must_match": ["\\b11\\b|dozen"]
+  },
+  {
+    "id": "yield-strategy",
+    "category": "lookup",
+    "question": "Would a 3+1 year observing strategy find more planets than two long pointings of 2 years each?",
+    "expected_papers": ["2023A&A...677A.133M", "2022A&A...665A..11H"],
+    "answer_must_match": ["(?i)twice|habitable"]
+  },
+  {
+    "id": "seismic-yield",
+    "category": "lookup",
+    "question": "For how many stars is PLATO expected to detect solar-like oscillations?",
+    "expected_papers": ["2024A&A...683A..78G"],
+    "answer_must_match": ["15[\\s,.]?000|30[\\s,.]?000"]
+  },
+  {
+    "id": "hare-and-hounds",
+    "category": "lookup",
+    "question": "How accurately were mass, radius and age recovered in the PLATO hare-and-hounds exercise for main-sequence stars?",
+    "expected_papers": ["2021MNRAS.508.5864C"],
+    "answer_must_match": ["4\\.32|1\\.33|11\\.25"],
+    "expect_flag": false
+  },
+  {
+    "id": "sapp",
+    "category": "identifier",
+    "question": "What is SAPP and which stellar parameters does it deliver?",
+    "expected_papers": ["2022A&A...658A.147G"],
+    "answer_must_match": ["(?i)abundance"]
+  },
+  {
+    "id": "sapp-teff",
+    "category": "lookup",
+    "question": "What effective-temperature uncertainty does the SAPP pipeline reach for the PLATO core sample?",
+    "expected_papers": ["2022A&A...658A.147G"],
+    "answer_must_match": ["\\b27\\b|\\b37\\b"],
+    "expect_flag": false
+  },
+  {
+    "id": "activity-filtering",
+    "category": "lookup",
+    "question": "Which stellar-activity filtering algorithms were compared for transit detection with PLATO, and which did best?",
+    "expected_papers": ["2023A&A...672A.144C"],
+    "answer_must_match": ["(?i)N&(amp;)?L|notch|biweight|VARLET|YSD"]
+  },
+  {
+    "id": "monotransits",
+    "category": "lookup",
+    "question": "How many TESS mono-transit events were found around stars in the PLATO input catalogue?",
+    "expected_papers": ["2024MNRAS.528.2851M"],
+    "answer_must_match": ["\\b48\\b"],
+    "expect_flag": false
+  },
+  {
+    "id": "false-positives",
+    "category": "lookup",
+    "question": "How does the rate of astrophysical false positives differ between the southern and the northern long-duration field?",
+    "expected_papers": ["2023MNRAS.518.3637B"],
+    "answer_must_match": ["(?i)twice|higher|increas"]
+  },
+  {
+    "id": "noise-floor",
+    "category": "lookup",
+    "question": "What radius uncertainty do stellar oscillations and granulation impose on the transit of an Earth-sized planet?",
+    "expected_papers": ["2020MNRAS.493.5489M"],
+    "answer_must_match": ["3\\.6"]
+  },
+  {
+    "id": "ldc-consortium",
+    "category": "lookup",
+    "question": "Which model atmospheres and codes were used to compute the PLATO consortium's first limb-darkening coefficients?",
+    "expected_papers": ["2022RNAAS...6..248M"],
+    "answer_must_match": ["(?i)MARCS"]
+  },
+  {
+    "id": "mps-atlas",
+    "category": "identifier",
+    "question": "What is the MPS-ATLAS limb-darkening library?",
+    "expected_papers": ["2022A&A...666A..60K"],
+    "answer_must_match": []
+  },
+  {
+    "id": "marvel",
+    "category": "identifier",
+    "question": "What is MARVEL and how many telescopes does it use?",
+    "expected_papers": ["2020SPIE11449E..13L"],
+    "answer_must_match": ["(?i)four|\\b4\\b"]
+  },
+  {
+    "id": "galactic-archaeology",
+    "category": "lookup",
+    "question": "Why is PLATO useful for Galactic archaeology?",
+    "expected_papers": ["2017AN....338..644M"],
+    "answer_must_match": ["(?i)age"]
+  },
+  {
+    "id": "m-dwarfs",
+    "category": "lookup",
+    "question": "What did K2 show about the rotation-activity relation of M dwarfs, and what will PLATO add?",
+    "expected_papers": ["2020AN....341..519R"],
+    "answer_must_match": []
+  },
+  {
+    "id": "rotation-in-binaries",
+    "category": "lookup",
+    "question": "How can stellar rotation be measured in a PLATO light curve that also contains eclipses or transits, without the detrending erasing the rotation signal?",
+    "expected_papers": ["2020ExA....50...73D"],
+    "answer_must_match": []
+  },
+  {
+    "id": "sub-jovian-desert",
+    "category": "lookup",
+    "question": "What is the sub-Jovian desert, and how can PLATO help to study it?",
+    "expected_papers": ["2023MNRAS.522..488K"],
+    "answer_must_match": []
+  },
+  {
+    "id": "frequency-with-age",
+    "category": "lookup",
+    "question": "Could PLATO detect a decrease of exoplanet frequency with the age of the host star?",
+    "expected_papers": ["2015MNRAS.453...67V"],
+    "answer_must_match": []
+  },
+  {
+    "id": "inversions-automation",
+    "category": "lookup",
+    "question": "How are seismic inversions being automated for the PLATO pipeline, and how is their quality checked?",
+    "expected_papers": ["2024A&A...681A..99B", "2023A&A...676A..10B"],
+    "answer_must_match": ["(?i)quality"]
+  },
+  {
+    "id": "wotan",
+    "category": "identifier",
+    "question": "Which detrending software was used in the transit least-squares study of simulated PLATO light curves?",
+    "expected_papers": ["2022A&A...665A..11H"],
+    "answer_must_match": ["(?i)w[oō]tan"]
+  },
+  {
+    "id": "followup-fast-cameras",
+    "category": "followup",
+    "history": [
+      {"role": "human", "content": "What is the readout cadence of PLATO's normal cameras?"},
+      {"role": "ai", "content": "The normal cameras are read out every 25 seconds."}
+    ],
+    "question": "And the fast ones?",
+    "expected_papers": ["2024A&A...681A..18J", "2019A&A...627A..71M", "2019A&A...624A.117S", "2021A&A...653A..98M"],
+    "answer_must_match": ["2\\.5"],
+    "note": "Only meaningful with the router, which has to turn this into a standalone query. Skipped in retrieval-only mode."
+  },
+  {
+    "id": "router-greeting",
+    "category": "router",
+    "question": "Hi there!",
+    "expected_papers": [],
+    "expect_search": false,
+    "expect_info": false,
+    "answer_must_match": []
+  },
+  {
+    "id": "router-which-llm",
+    "category": "router",
+    "question": "Which language model are you running on?",
+    "expected_papers": [],
+    "expect_search": false,
+    "expect_info": true,
+    "answer_must_match": ["(?i)GLM"]
+  },
+  {
+    "id": "router-paper-list",
+    "category": "router",
+    "question": "Where can I find the full list of PLATO papers?",
+    "expected_papers": [],
+    "expect_info": true,
+    "answer_must_match": ["(?i)platopub"]
+  },
+  {
+    "id": "absent-jwst",
+    "category": "absent",
+    "question": "What is the diameter of the primary mirror of the James Webb Space Telescope?",
+    "expected_papers": [],
+    "answer_must_match": ["6\\.5"],
+    "note": "Not in the corpus, but an astronomy question: the bot may answer from the model's general knowledge (6.5 m) provided the answer carries the fixed general-knowledge label.",
+    "expect_flag": true
+  },
+  {
+    "id": "absent-discoveries",
+    "category": "absent",
+    "question": "Which planets has PLATO discovered so far?",
+    "expected_papers": [],
+    "answer_must_match": ["(?i)not (yet )?(been )?launched|has not|hasn't|no (planets|discoveries)|yet to"],
+    "note": "A trap: PLATO has not launched. Every yield paper talks about *expected* detections; the answer must not present them as discoveries."
+  },
+  {
+    "id": "offtopic-capital",
+    "category": "offtopic",
+    "question": "What is the capital of Australia?",
+    "expected_papers": [],
+    "answer_must_match": [],
+    "answer_must_not_match": ["(?i)canberra"],
+    "expect_flag": false,
+    "note": "Nothing to do with astronomy or PLATO: the bot should say it is outside its scope, not answer."
+  }
+]

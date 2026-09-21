@@ -10,6 +10,8 @@
 #   make metadata refresh ingest/papers.json from the PLATO-Pub list and ADS
 #   make reindex  rebuild the Weaviate PLATO collection from the markdown corpus
 #                 (DESTRUCTIVE — see the reindex target below)
+#   make eval     score retrieval against eval/questions.json (no LLM, ~1 min)
+#   make eval-full  score whole answers too (needs the AU network, ~10 min)
 #
 # Prerequisites: Weaviate running locally (the PLATO collection must be loaded)
 # and the env vars in platochat/.env (OPENWEBUI_API_KEY, LANGFUSE_*).
@@ -30,7 +32,10 @@ BASE_PYTHON ?= python3.10
 # The static site server only needs the stdlib, so it does not require the venv.
 WEB_PYTHON ?= python3
 
-.PHONY: dev api web streamlit venv check-venv kill urls reindex metadata
+# The eval questions and results.
+EVAL_DIR  := eval
+
+.PHONY: dev api web streamlit venv check-venv kill urls reindex metadata eval eval-full
 
 venv:
 	$(BASE_PYTHON) -m venv $(VENV)
@@ -78,6 +83,16 @@ reindex: check-venv
 META_ARGS ?=
 metadata: check-venv
 	$(PYTHON) $(INGEST_DIR)/fetch_metadata.py $(META_ARGS)
+
+# Regression check for anything that touches retrieval or the prompts.
+#   make eval EVAL_ARGS="--label hybrid --against eval/results/<earlier>/results.json"
+#   PLATO_COLLECTION=PLATO_TEST make eval        # score a side-by-side collection
+EVAL_ARGS ?=
+eval: check-venv
+	$(PYTHON) $(EVAL_DIR)/run_eval.py $(EVAL_ARGS)
+
+eval-full: check-venv
+	$(PYTHON) $(EVAL_DIR)/run_eval.py --full $(EVAL_ARGS)
 
 kill:
 	-@pkill -f "uvicorn plato_api" 2>/dev/null || true
