@@ -3,8 +3,12 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import warnings
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from heading_levels import renumber_headings  # noqa: E402
 
 
 def load_pdf_models(device=None, dtype=None):
@@ -24,7 +28,8 @@ def load_pdf_models(device=None, dtype=None):
     return create_model_dict(device=device, dtype=dtype)
 
 
-def pdf_to_markdown(pdf_path, image_dir=None, models=None, page_range=None):
+def pdf_to_markdown(pdf_path, image_dir=None, models=None, page_range=None,
+                    fix_heading_levels=True):
     """Convert a PDF to Markdown (with images) using marker.
 
     marker analyses the page layout to recover reading order, headings, lists,
@@ -36,6 +41,11 @@ def pdf_to_markdown(pdf_path, image_dir=None, models=None, page_range=None):
     Image links in the returned Markdown are relative to ``image_dir`` (bare
     filenames), matching the convention of ``latex_to_markdown``.
 
+    marker's heading *text* is reliable but the number of ``#`` it assigns is
+    not, which corrupts the section breadcrumbs ``textsplitter`` builds. By
+    default the headings are therefore rebuilt from their section numbering --
+    see ``heading_levels.renumber_headings`` for what that fixes and how.
+
     Args:
         pdf_path: path to the input .pdf file.
         image_dir: directory for the extracted images. Defaults to
@@ -45,6 +55,8 @@ def pdf_to_markdown(pdf_path, image_dir=None, models=None, page_range=None):
             converting more than one PDF).
         page_range: optional marker page-range string (e.g. "0-5" or "0,2,4")
             to convert only part of the document; None converts everything.
+        fix_heading_levels: rebuild heading levels from section numbering.
+            Set False to get marker's raw output (e.g. to compare the two).
 
     Returns:
         The Markdown as a string.
@@ -95,6 +107,9 @@ def pdf_to_markdown(pdf_path, image_dir=None, models=None, page_range=None):
     markdown, _ext, images = text_from_rendered(rendered)
     for filename, image in images.items():
         image.save(os.path.join(image_dir, filename))
+
+    if fix_heading_levels:
+        markdown, _stats = renumber_headings(markdown)
 
     return markdown
 
