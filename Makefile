@@ -7,6 +7,7 @@
 #   make streamlit run the legacy Streamlit UI instead of the web front-end
 #   make kill     stop the API and static server
 #   make urls     print the local URLs
+#   make metadata refresh ingest/papers.json from the PLATO-Pub list and ADS
 #   make reindex  rebuild the Weaviate PLATO collection from the markdown corpus
 #                 (DESTRUCTIVE — see the reindex target below)
 #
@@ -29,7 +30,7 @@ BASE_PYTHON ?= python3.10
 # The static site server only needs the stdlib, so it does not require the venv.
 WEB_PYTHON ?= python3
 
-.PHONY: dev api web streamlit venv check-venv kill urls reindex
+.PHONY: dev api web streamlit venv check-venv kill urls reindex metadata
 
 venv:
 	$(BASE_PYTHON) -m venv $(VENV)
@@ -70,6 +71,13 @@ streamlit: check-venv
 ARGS ?= --dry-run
 reindex: check-venv
 	$(PYTHON) $(INGEST_DIR)/reindex_weaviate.py $(ARGS)
+
+# Which papers exist and what ADS knows about them (dates, DOIs, arXiv ids).
+# Run before a reindex: the index only holds papers that are on the list.
+#   make metadata META_ARGS="--dry-run"    # report only, write nothing
+META_ARGS ?=
+metadata: check-venv
+	$(PYTHON) $(INGEST_DIR)/fetch_metadata.py $(META_ARGS)
 
 kill:
 	-@pkill -f "uvicorn plato_api" 2>/dev/null || true
