@@ -20,8 +20,14 @@
 	<script type="text/javascript" src="/js/scripts.js"></script>
 	<!-- Markdown + math rendering for chat replies -->
 	<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+	<!-- marked lets raw HTML through; DOMPurify strips whatever could execute from its output -->
+	<script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
 	<script>
 		window.MathJax = {
+			// MathJax typesets after DOMPurify has run, so its own output needs
+			// guarding too: without ui/safe, \href{javascript:...}{x} in a formula
+			// becomes a live link. With it, javascript: and data: URLs are dropped.
+			loader: { load: ['ui/safe'] },
 			tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$', '$$'], ['\\[', '\\]']] },
 			options: { ignoreHtmlClass: 'tex2jax_ignore', processHtmlClass: 'tex2jax_process' }
 		};

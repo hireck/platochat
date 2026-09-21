@@ -37,12 +37,29 @@
 		}
 	}
 
+	// Only what markdown itself produces is allowed through: no SVG/MathML (the
+	// math is typeset by MathJax afterwards, from the $...$ text), and no CSS or
+	// form controls, which cannot run code but can restyle the page or fake a
+	// login box.
+	var SANITIZE_OPTIONS = {
+		USE_PROFILES: { html: true },
+		FORBID_TAGS: ["style", "form", "input", "button", "textarea", "select"],
+		FORBID_ATTR: ["style"]
+	};
+
+	// marked passes raw HTML in its input straight through, and that input is
+	// text we do not control -- the LLM's answer, and through it passages from
+	// the indexed papers. So marked's output is only used once DOMPurify has
+	// stripped what could execute (<script>, onerror=, javascript: links). If
+	// either library failed to load, the text is shown escaped instead: plain,
+	// but inert.
 	function renderMarkdown(text) {
 		try {
-			return window.marked ? window.marked.parse(text) : escapeHtml(text);
-		} catch (e) {
-			return escapeHtml(text);
-		}
+			if (window.marked && window.DOMPurify && window.DOMPurify.isSupported) {
+				return window.DOMPurify.sanitize(window.marked.parse(text), SANITIZE_OPTIONS);
+			}
+		} catch (e) {}
+		return escapeHtml(text);
 	}
 
 	function escapeHtml(s) {
@@ -55,7 +72,12 @@
 
 		var bubble = document.createElement("div");
 		bubble.className = "chat-bubble";
-		bubble.innerHTML = renderMarkdown(markdown);
+		if (role === "human") {
+			// What the visitor typed is shown as typed, never parsed as markup.
+			bubble.textContent = markdown;
+		} else {
+			bubble.innerHTML = renderMarkdown(markdown);
+		}
 		row.appendChild(bubble);
 
 		if (role === "ai" && sourcesMarkdown) {
@@ -69,6 +91,15 @@
 			details.appendChild(summary);
 			details.appendChild(body);
 			bubble.appendChild(details);
+		}
+
+		// The sources link out to ADS and the publishers. The conversation lives
+		// only in this page's memory, so following a link in the same tab would
+		// lose it -- open them in a new one.
+		var links = bubble.querySelectorAll("a[href]");
+		for (var i = 0; i < links.length; i++) {
+			links[i].target = "_blank";
+			links[i].rel = "noopener noreferrer";
 		}
 
 		log.appendChild(row);
