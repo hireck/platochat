@@ -18,7 +18,24 @@ Run it:
 Requires Weaviate running locally (same as the Streamlit app) and the env vars
 in ``.env`` (OPENWEBUI_API_KEY, LANGFUSE_*). Model loading happens once when
 ``plato_core`` is imported, so the first start is slow.
+
+Which web pages may call the API (CORS):
+    A browser only lets a page read this API's responses if the page's origin
+    (scheme + host + port, e.g. ``https://platopub.phys.au.dk``) is on the
+    allow-list. Set it with ``PLATO_CORS_ORIGINS``, comma-separated, in the
+    environment or in ``.env``:
+
+        PLATO_CORS_ORIGINS=https://platopub.phys.au.dk
+
+    Unset, it allows only the local dev site (``http://localhost:8090`` and
+    ``http://127.0.0.1:8090``, where ``make dev`` serves ``local_site/``). Set
+    to an empty string it allows no cross-origin page at all, which is right
+    when the page and the API are served from the same origin. Origins are
+    written without a path or trailing slash. This restrains browsers only --
+    it does not stop scripts or curl from calling the API.
 """
+
+import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -28,12 +45,23 @@ import plato_core
 
 app = FastAPI(title="PLATO Chatbot API", version="0.1.0")
 
-# The page is served from a different origin during local dev
-# (python -m http.server on :8090), so allow cross-origin calls. Tighten this
-# allow-list before any non-local deployment.
+# The page is served from a different origin than the API -- during local dev
+# python -m http.server on :8090 -- so the browser needs the API's permission
+# before it hands the page a response. See the module docstring.
+DEFAULT_CORS_ORIGINS = "http://localhost:8090,http://127.0.0.1:8090"
+
+
+def _cors_origins() -> list[str]:
+    # Read after `import plato_core`, which loads .env.
+    raw = os.environ.get("PLATO_CORS_ORIGINS", DEFAULT_CORS_ORIGINS)
+    # A browser sends the origin without a trailing slash, and the match is
+    # exact, so "https://host/" in the setting would silently never match.
+    return [o.strip().rstrip("/") for o in raw.split(",") if o.strip()]
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_origins(),
     allow_methods=["POST", "GET", "OPTIONS"],
     allow_headers=["*"],
 )
