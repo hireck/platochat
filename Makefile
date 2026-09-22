@@ -11,6 +11,7 @@
 #   make update   bring the corpus up to date: refresh the list, fetch and convert
 #                 new full texts, update the index paper by paper (what cron runs)
 #   make status   which papers have full text, which are abstract only, what failed
+#   make licences look up under what licence each paper is published, and report
 #   make reindex  rebuild the Weaviate PLATO collection from the markdown corpus
 #                 (DESTRUCTIVE — see the reindex target below)
 #   make eval     score retrieval against eval/questions.json (no LLM, ~1 min)
@@ -40,7 +41,7 @@ WEB_PYTHON ?= python3
 # The eval questions and results.
 EVAL_DIR  := eval
 
-.PHONY: dev api web streamlit venv check-venv kill urls reindex metadata update status eval eval-full
+.PHONY: dev api web streamlit venv check-venv kill urls reindex metadata update status licences eval eval-full
 
 venv:
 	$(BASE_PYTHON) -m venv $(VENV)
@@ -107,6 +108,16 @@ update: check-venv
 
 status: check-venv
 	@$(PYTHON) $(INGEST_DIR)/update_corpus.py --status
+
+# Under what licence each paper, and the copy of it we indexed, is published
+# (arXiv, Crossref, DataCite, OpenAlex; see ingest/fetch_licences.py). Looks up
+# new papers and those ADS reports something new about -- `make update` does
+# the same every night -- and prints the report. Recorded in the manifest only.
+#   make licences UPDATE_ARGS="--recheck-licences"    # look every paper up again
+#   PLATO_COLLECTION=PLATO_NEXT make licences         # object counts from that collection
+licences: check-venv
+	$(PYTHON) $(INGEST_DIR)/update_corpus.py --stages licences $(UPDATE_ARGS)
+	@$(PYTHON) $(INGEST_DIR)/fetch_licences.py --report
 
 # Regression check for anything that touches retrieval or the prompts.
 #   make eval EVAL_ARGS="--label hybrid --against eval/results/<earlier>/results.json"

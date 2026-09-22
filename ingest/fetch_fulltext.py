@@ -72,7 +72,8 @@ ARXIV = "https://export.arxiv.org"
 ADS_RESOLVER = "https://api.adsabs.harvard.edu/v1/resolver"
 
 # Seconds between requests to one host; arXiv's stated minimum is 3.
-HOST_DELAY = {"export.arxiv.org": 5.0}
+# oaipmh.arxiv.org serves the licence records (fetch_licences.py).
+HOST_DELAY = {"export.arxiv.org": 5.0, "oaipmh.arxiv.org": 5.0}
 DEFAULT_DELAY = 1.0
 TIMEOUT = 60                       # seconds without a byte before giving up
 MAX_DOWNLOAD = 400 * 2**20         # one file; arXiv bundles with raw data run large

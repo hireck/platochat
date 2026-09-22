@@ -8,7 +8,10 @@ One command for the whole ingest, safe to run every night (see cron_update.sh):
 2. fetch     download and convert the full text of every paper that may have
              one and does not yet (fetch_fulltext.py; LaTeXML for LaTeX,
              marker for PDFs)
-3. index     bring the Weaviate collection in line with the list: write the
+3. licences  record under what licence each paper, and the copy of it we
+             indexed, is published (fetch_licences.py). Recorded only, in the
+             manifest: nothing is left out of the index because of it
+4. index     bring the Weaviate collection in line with the list: write the
              objects of papers that are new or changed, delete those of papers
              that left it (reindex_weaviate.py)
 
@@ -58,6 +61,7 @@ from datetime import datetime, timezone
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import fetch_fulltext  # noqa: E402
+import fetch_licences  # noqa: E402
 from fetch_fulltext import (  # noqa: E402
     FetchError, Fetched, access_of, fulltext_allowed, fulltext_sources, sha256_file,
 )
@@ -96,7 +100,9 @@ MANIFEST_ABOUT = (
     "Per-paper state of the PLATO ingest, written by ingest/update_corpus.py. "
     "'state' is one of: full text, abstract only (paywalled), pending, retry, "
     "failed, removed. To have a paper fetched and converted again, run "
-    "update_corpus.py --only <bibcode> --redo."
+    "update_corpus.py --only <bibcode> --redo. 'licence' says under what licence "
+    "the paper, and the copy of it that was indexed, is published, and what "
+    "arXiv, Crossref, DataCite and OpenAlex said (see ingest/fetch_licences.py)."
 )
 
 
@@ -719,6 +725,9 @@ def summary(manifest: dict, papers: dict) -> None:
     removed = sum(1 for e in manifest["papers"].values() if e["state"] == REMOVED)
     if removed:
         log(f"  no longer listed: {removed}")
+    licences = fetch_licences.status_line(manifest["papers"], papers)
+    if licences:
+        log(licences)
 
     stuck = [(b, e) for b, e in entries.items() if e["state"] in (FAILED, RETRY)]
     if stuck:
@@ -742,8 +751,8 @@ def main() -> int:
     ap.add_argument("--md-dir", default=DEFAULT_MD_DIR, help="the markdown corpus")
     ap.add_argument("--metadata", default=DEFAULT_METADATA)
     ap.add_argument("--env", default=DEFAULT_ENV, help="file holding ADS_API_KEY")
-    ap.add_argument("--stages", default="metadata,fetch,index",
-                    help="which steps to run (default: metadata,fetch,index)")
+    ap.add_argument("--stages", default="metadata,fetch,licences,index",
+                    help="which steps to run (default: metadata,fetch,licences,index)")
     ap.add_argument("--dry-run", action="store_true",
                     help="say what would be done; download, convert and write nothing")
     ap.add_argument("--status", action="store_true", help="summarise the manifest and stop")
@@ -752,6 +761,9 @@ def main() -> int:
                     help="with --only: fetch and convert those papers again")
     ap.add_argument("--retry-failed", action="store_true",
                     help="try again every source that failed before")
+    ap.add_argument("--recheck-licences", action="store_true",
+                    help="look up every paper's licence again, not only the new papers and "
+                         "those ADS reports something new about")
     ap.add_argument("--allow-removals", action="store_true",
                     help=f"allow more than {REMOVAL_GUARD} papers to leave in one run")
     ap.add_argument("--rounds", type=int, default=3,
@@ -826,9 +838,24 @@ def run(args, paths: Paths, manifest: dict, stages: set[str], ap) -> int:
         log("\n2. Fetch and convert")
         added = fetch_stage(manifest, papers, paths, args, problems)
 
+    # Not a problem for the exit code when it fails: nothing depends on it yet,
+    # and whatever could not be looked up is asked again on the next run.
+    if "licences" in stages:
+        log("\n3. Licences")
+        try:
+            done = fetch_licences.update_licences(
+                manifest["papers"], papers, only=args.only, force=args.recheck_licences,
+                dry_run=args.dry_run, log=log)
+            if done:
+                log("  " + ", ".join(f"{v} {k}" for k, v in done.items()))
+        except Exception as exc:
+            log(f"  ! licence lookup failed: {type(exc).__name__}: {exc}")
+        if not args.dry_run:
+            save_manifest(paths.manifest, manifest)
+
     stats: Counter = Counter()
     if "index" in stages:
-        log(f"\n3. Index ('{args.collection}')")
+        log(f"\n4. Index ('{args.collection}')")
         try:
             stats = index_stage(manifest, papers, paths, args, ChunkSettings())
         except Exception as exc:
