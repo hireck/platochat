@@ -206,7 +206,60 @@ def pdf_to_markdown_mineru(pdf_path, image_dir=None, backend="pipeline",
     return markdown
 
 
-if __name__ == "__main__":
-    import sys
+def run_jobs(jobs_path, timeout=None):
+    """Convert a batch of PDFs with one load of marker's models.
 
-    print(pdf_to_markdown(sys.argv[1]))
+    ``jobs_path`` is a JSON list of ``{"id", "pdf", "markdown", "image_dir"}``.
+    Progress goes to stdout as one JSON object per line -- ``{"event": "start",
+    "id": ...}`` before each PDF and ``{"event": "done", "id": ..., "ok": ...,
+    "seconds": ..., "error": ...}`` after it -- which is what update_corpus.py
+    reads. It runs this in a separate Python because marker and its torch need
+    not be the ones in the chatbot's venv. One PDF failing does not stop the
+    rest; ``timeout`` (seconds) bounds each one.
+    """
+    import json
+    import signal
+    import time
+
+    with open(jobs_path, encoding="utf-8") as fh:
+        jobs = json.load(fh)
+
+    def emit(**msg):
+        print(json.dumps(msg), flush=True)
+
+    def on_alarm(signum, frame):
+        raise TimeoutError(f"not finished within {timeout} s")
+
+    signal.signal(signal.SIGALRM, on_alarm)
+    models = load_pdf_models()
+    for job in jobs:
+        emit(event="start", id=job["id"])
+        t0 = time.time()
+        if timeout:
+            signal.alarm(int(timeout))
+        try:
+            markdown = pdf_to_markdown(job["pdf"], image_dir=job["image_dir"], models=models)
+            with open(job["markdown"], "w", encoding="utf-8") as fh:
+                fh.write(markdown)
+            result = {"ok": True}
+        except Exception as exc:  # one bad PDF must not take the batch down
+            result = {"ok": False, "error": f"{type(exc).__name__}: {exc}"[:500]}
+        finally:
+            signal.alarm(0)
+        emit(event="done", id=job["id"], seconds=round(time.time() - t0, 1), **result)
+
+
+if __name__ == "__main__":
+    import argparse
+
+    ap = argparse.ArgumentParser(description="PDF to markdown with marker.")
+    ap.add_argument("pdf", nargs="?", help="convert one PDF and print the markdown")
+    ap.add_argument("--jobs", help="JSON list of conversions to run with one model load")
+    ap.add_argument("--timeout", type=float, help="seconds allowed per PDF (with --jobs)")
+    args = ap.parse_args()
+    if args.jobs:
+        run_jobs(args.jobs, args.timeout)
+    elif args.pdf:
+        print(pdf_to_markdown(args.pdf))
+    else:
+        ap.error("give a PDF or --jobs")

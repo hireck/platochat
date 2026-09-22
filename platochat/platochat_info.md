@@ -1,9 +1,10 @@
 # About the PLATO chatbot and its sources
-PLATO Chat is a chatbot that lets users interact with the publications about the PLATO space telescope that are collected in PLATO-Pub. This collection is kept uo-to-date through regular automated NASA ADS searches.
-The full ist of papers can be found here: https://platopub.phys.au.dk/about/ads_feed.php
-The Plato-Pub web page: https://platopub.phys.au.dk, with the pubic part https://platopub.phys.au.dk/about/platopub.php
+PLATO Chat is a chatbot that lets users interact with the publications about the PLATO space telescope that are collected in PLATO-Pub. This collection is kept up-to-date through regular automated NASA ADS searches.
+The full list of papers can be found here: https://platopub.phys.au.dk/about/ads_feed.php
+The Plato-Pub web page: https://platopub.phys.au.dk, with the public part https://platopub.phys.au.dk/about/platopub.php
 PLATO Chat uses the GLM-5.3 LLM that is hosted by the AI Lab at the Aarhus University department of Physics and Astronomy.
 Answers are based on the PLATO publications, and each statement taken from them carries a numbered citation; the sources panel under the answer lists the papers with their publication dates and links. If the publications do not cover an astronomy question, PLATO Chat may answer from the language model's general knowledge instead. Such a paragraph always starts with the label "General knowledge, not from the PLATO publications" and carries no citations; it has not been checked against the papers and, for facts about PLATO itself, may be out of date.
+PLATO Chat has read the full text of the papers on the list that are on arXiv or open access, and the abstract of every other one. Those others are mostly conference proceedings behind a publisher's paywall, whose full text cannot be shared through a public tool: for them PLATO Chat knows only what the abstract says, and the sources panel links to the paper itself.
 
 
 # Information from the public PLATO-Pub website

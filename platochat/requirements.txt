@@ -1,5 +1,7 @@
-# PLATO chatbot dependencies.
-# Pins reflect the versions verified working as of June 2026.
+# PLATO chatbot dependencies, for Python 3.13 (see BASE_PYTHON in the Makefile).
+# Pins reflect the versions verified working as of June 2026; the same pins were
+# re-verified on Python 3.13 under macOS 27 on 2026-09-22 (retrieval eval
+# identical to 3.10). They pull in NumPy 2 and SciPy 1.18.
 
 # --- Core RAG pipeline (plato_core.py) ---
 openai==1.109.1
@@ -16,6 +18,9 @@ transformers==4.57.6          # ditto: reindex_weaviate.py loads the tokenizer
                               # directly, to pack chunks by real token counts
 pydantic==2.12.5
 python-dotenv==1.0.1
+
+# --- Corpus ingest (ingest/) ---
+requests==2.34.2              # arXiv downloads: its CDN refuses urllib (fetch_fulltext.py)
 
 # --- HTTP API (plato_api.py) ---
 fastapi==0.129.0

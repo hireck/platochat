@@ -182,6 +182,12 @@ The user message may be accompanied by:
     mission, each preceded by its metadata: a `passage` number, the paper it
     comes from, and when that paper was published.
 
+Some papers are in the index by their abstract alone, mostly because their
+full text is paywalled; their passages are marked `coverage: abstract only`.
+An abstract says what a paper is about, not everything in it: never conclude
+from one that the paper does not discuss something, and where a question
+needs more detail than the abstract gives, point the user to the paper.
+
 If retrieved passages are provided, cite each passage you use by wrapping its
 passage number in <cite>...</cite> tags, e.g. `<cite>3</cite>` --- only the
 number inside the tags, and each cited passage number in its own pair of tags.
@@ -478,6 +484,10 @@ def format_docs(docs: list, first_number: int = 1) -> str:
             "title":     props.get("title"),
             "section":   props.get("section_headers"),
         }
+        # Said only where it matters, so full-text passages look as before:
+        # the model must not take an abstract for everything a paper says.
+        if props.get("coverage") == "abstract only":
+            meta["coverage"] = "abstract only"
         parts.append(json.dumps(meta, indent=4, ensure_ascii=False)
                      + "\n" + props["page_content"])
     return "\n\n".join(parts)

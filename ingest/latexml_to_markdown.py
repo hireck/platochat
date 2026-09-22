@@ -172,7 +172,7 @@ def _collect_images(markdown):
 
 
 def latex_to_markdown(tex_path, image_dir=None, keep_html=False,
-                      return_images=False, log_dir=None):
+                      return_images=False, log_dir=None, timeout=None):
     """Convert a LaTeX file to Markdown (with images) using LaTeXML.
 
     LaTeXML has no direct Markdown writer, so the conversion runs in three
@@ -201,6 +201,10 @@ def latex_to_markdown(tex_path, image_dir=None, keep_html=False,
             "<base>.<tool>.log" (one each for latexml/latexmlpost/pandoc).
             Defaults to a "logs" folder inside ``image_dir``; pass a shared
             path to collect every conversion's logs in one place.
+        timeout: seconds each of the three tools may run before it is killed
+            and a RuntimeError raised. None waits for ever. LaTeXML can hang on
+            an unusual package, which in an unattended update would stall
+            every paper after it.
 
     Returns:
         The Markdown as a string, or ``(markdown, images)`` when
@@ -260,8 +264,11 @@ def latex_to_markdown(tex_path, image_dir=None, keep_html=False,
 
         When ``expect`` is None (pandoc) a non-zero exit is a hard failure.
         """
-        proc = subprocess.run(cmd, capture_output=True, text=True,
-                              env=_latexml_env())
+        try:
+            proc = subprocess.run(cmd, capture_output=True, text=True,
+                                  env=_latexml_env(), timeout=timeout)
+        except subprocess.TimeoutExpired:
+            raise RuntimeError(f"{cmd[0]} did not finish within {timeout} s") from None
         log = (proc.stdout + proc.stderr).strip()
         # The LaTeXML stages write their own log into log_dir via --log (set
         # on the commands below) -- otherwise they'd litter the working dir.

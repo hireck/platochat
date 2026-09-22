@@ -200,15 +200,8 @@ def load_key(env_path: str) -> str:
     return key
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--out", default=DEFAULT_OUT)
-    ap.add_argument("--env", default=DEFAULT_ENV, help="file holding ADS_API_KEY")
-    ap.add_argument("--dry-run", action="store_true", help="report, write nothing")
-    args = ap.parse_args()
-    key = load_key(args.env)
-
+def fetch_papers(key: str) -> dict[str, dict]:
+    """Every paper on the live list, with its ADS record, keyed by current bibcode."""
     print(f"Reading the PLATO-Pub list ({FEED_URL}) …")
     feed = fetch_feed()
     feed_bibcodes = [p["bibcode"] for p in feed if p.get("bibcode")]
@@ -241,30 +234,49 @@ def main() -> int:
                 "aliases": [p["bibcode"]], "feed_bibcode": p["bibcode"],
                 "arxiv_id": "", "metadata_source": "plato-pub feed only",
             }
+    if unresolved:
+        print(f"  {len(unresolved)} unknown to ADS: {', '.join(unresolved)}")
+    return papers
 
+
+def summarise(papers: dict[str, dict]) -> None:
     recs = list(papers.values())
-    print(f"\n{len(recs)} papers"
-          + (f"  ({len(unresolved)} unknown to ADS: {', '.join(unresolved)})"
-             if unresolved else ""))
+    print(f"\n{len(recs)} papers")
     print("  by type:        ", dict(Counter(r.get("doctype", "?") for r in recs).most_common()))
     print("  with a pubdate: ", sum(1 for r in recs if r.get("pubdate")))
     print("  with an arXiv id:", sum(1 for r in recs if r.get("arxiv_id")))
     print("  open access:    ", sum(1 for r in recs if "OPENACCESS" in r.get("property", [])))
     print("  by year:        ", dict(sorted(Counter(r.get("year", "?") for r in recs).items())))
 
-    if args.dry_run:
-        print("\nDry run — nothing written.")
-        return 0
 
+def write_papers(papers: dict[str, dict], path: str) -> None:
     out = {
         "fetched_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "list_url": FEED_URL,
         "n_papers": len(papers),
         "papers": dict(sorted(papers.items())),
     }
-    with open(args.out, "w", encoding="utf-8") as fh:
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
         json.dump(out, fh, indent=1, ensure_ascii=False)
         fh.write("\n")
+    os.replace(tmp, path)   # never leave a half-written papers.json behind
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--out", default=DEFAULT_OUT)
+    ap.add_argument("--env", default=DEFAULT_ENV, help="file holding ADS_API_KEY")
+    ap.add_argument("--dry-run", action="store_true", help="report, write nothing")
+    args = ap.parse_args()
+
+    papers = fetch_papers(load_key(args.env))
+    summarise(papers)
+    if args.dry_run:
+        print("\nDry run — nothing written.")
+        return 0
+    write_papers(papers, args.out)
     print(f"\nWrote {args.out}")
     return 0
 

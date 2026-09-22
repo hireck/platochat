@@ -8,6 +8,9 @@
 #   make kill     stop the API and static server
 #   make urls     print the local URLs
 #   make metadata refresh ingest/papers.json from the PLATO-Pub list and ADS
+#   make update   bring the corpus up to date: refresh the list, fetch and convert
+#                 new full texts, update the index paper by paper (what cron runs)
+#   make status   which papers have full text, which are abstract only, what failed
 #   make reindex  rebuild the Weaviate PLATO collection from the markdown corpus
 #                 (DESTRUCTIVE — see the reindex target below)
 #   make eval     score retrieval against eval/questions.json (no LLM, ~1 min)
@@ -27,15 +30,17 @@ INGEST_DIR := ingest
 # Override with:  make api PYTHON=/path/to/other/python
 VENV      := $(CURDIR)/$(API_DIR)/.venv
 PYTHON    ?= $(VENV)/bin/python
-# Interpreter used to CREATE the venv; the deps are pinned for 3.10.
-BASE_PYTHON ?= python3.10
+# Interpreter used to CREATE the venv; the deps are pinned for 3.13. (3.10 had
+# to go with macOS 27: its last SciPy, 1.15.3, ships Fortran modules the new
+# loader refuses, and sentence-transformers cannot be imported without them.)
+BASE_PYTHON ?= python3.13
 # The static site server only needs the stdlib, so it does not require the venv.
 WEB_PYTHON ?= python3
 
 # The eval questions and results.
 EVAL_DIR  := eval
 
-.PHONY: dev api web streamlit venv check-venv kill urls reindex metadata eval eval-full
+.PHONY: dev api web streamlit venv check-venv kill urls reindex metadata update status eval eval-full
 
 venv:
 	$(BASE_PYTHON) -m venv $(VENV)
@@ -64,9 +69,10 @@ web:
 streamlit: check-venv
 	cd $(API_DIR) && $(PYTHON) -m streamlit run plato_chat.py
 
-# Rebuild the vector index. Chunks the markdown corpus and re-embeds it with
-# bge-m3, which is 1024-dim against the old 384, so the collection cannot be
-# updated in place -- it is dropped and recreated. Takes a few minutes.
+# Rebuild the vector index from scratch: the collection is dropped and every
+# paper chunked and embedded again (about ten minutes for 180 papers). The
+# everyday path is `make update`, which rewrites only the papers that changed;
+# a rebuild is for trying other chunking settings in a collection of its own.
 #
 #   make reindex                              # preview only, writes nothing
 #   make reindex ARGS="--collection PLATO_TEST"   # build alongside the live one
@@ -83,6 +89,24 @@ reindex: check-venv
 META_ARGS ?=
 metadata: check-venv
 	$(PYTHON) $(INGEST_DIR)/fetch_metadata.py $(META_ARGS)
+
+# The whole ingest in one go, doing only what is not done yet: refresh the
+# list, download and convert full texts that are missing (arXiv and open access
+# only -- paywalled papers are indexed by their abstract), then write the
+# objects of new or changed papers and remove those of papers that left the
+# list. State lives in <data>/manifest.json and in the index itself; see
+# ingest/update_corpus.py. ingest/cron_update.sh runs this nightly.
+#   make update UPDATE_ARGS="--dry-run"                  # say what would be done
+#   PLATO_COLLECTION=PLATO_TEST make update              # another collection
+#   make update UPDATE_ARGS="--only <bibcode> --redo"    # fetch one paper again
+# PDFs are converted by marker, which may live in another Python; set
+# PLATO_MARKER_PYTHON if `marker_single` is not on the PATH.
+UPDATE_ARGS ?=
+update: check-venv
+	$(PYTHON) $(INGEST_DIR)/update_corpus.py $(UPDATE_ARGS)
+
+status: check-venv
+	@$(PYTHON) $(INGEST_DIR)/update_corpus.py --status
 
 # Regression check for anything that touches retrieval or the prompts.
 #   make eval EVAL_ARGS="--label hybrid --against eval/results/<earlier>/results.json"
