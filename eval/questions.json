@@ -3,60 +3,64 @@
     "id": "cameras-count",
     "category": "recency",
     "question": "How many cameras does PLATO have, and how many of them are fast cameras?",
-    "expected_papers": ["2024A&A...681A..18J", "2019A&A...624A.117S", "2020ExA....50...73D", "2021A&A...653A..98M", "2022A&A...658A..31N", "2022A&A...665A..11H", "2023A&A...677A.133M"],
+    "expected_papers": ["2024A&A...681A..18J", "2019A&A...624A.117S", "2020ExA....50...73D", "2021A&A...653A..98M", "2022A&A...658A..31N", "2022A&A...665A..11H", "2023A&A...677A.133M", "2020ExA....50....1G", "2020SPIE11443E..4VC", "2021SPIE11852E..09P", "2021SPIE11852E..3HG", "2021SPIE11852E..4YP", "2022RNAAS...6..248M", "2022SPIE12180E..1BC", "2022SPIE12180E..1EK", "2022SPIE12180E..4NP", "2024A&A...692A..17K", "2024A&A...692A.150B", "2024ExA....58....1B", "2024MNRAS.535.1778E", "2024SPIE13092E..46C", "2024SPIE13092E..47C", "2024SPIE13092E..4SB", "2024SPIE13092E..4TM", "2024SPIE13099E..0VA", "2024SPIE13099E..20S", "2024eas..conf.1601G", "2025A&A...694A.185J", "2025ExA....59...26R", "2026A&A...707A.200M", "2022SPIE12180E..4OV", "2023A&A...672A.144C"],
     "answer_must_match": ["\\b26\\b", "\\b24\\b"],
-    "note": "Outdated source in the corpus: Marcos-Arenal et al. (2014) computes noise for 32 telescopes (the PLATO 2.0 design had 32 normal + 2 fast).",
+    "note": "Outdated source in the corpus: Marcos-Arenal et al. (2014) computes noise for 32 telescopes (the PLATO 2.0 design had 32 normal + 2 fast). Rauer et al. (2014) gives the PLATO 2.0 design: 34 telescopes, 32 normal and 2 fast. Papers giving only the total of 26 are not counted as answering.",
     "expect_flag": false
   },
   {
     "id": "launch-date",
     "category": "recency",
     "question": "When is PLATO scheduled to launch?",
-    "expected_papers": ["2024A&A...681A..18J", "2024A&A...681A..99B", "2024A&A...683A..78G", "2023A&A...677A.133M", "2023A&A...672A.144C", "2022A&A...658A..31N", "2022A&A...665A..11H", "2022RNAAS...6..248M", "2021A&A...653A..98M", "2019A&A...624A.117S", "2019A&A...627A..71M", "2020ExA....50...73D"],
+    "expected_papers": ["2024A&A...681A..18J", "2024A&A...681A..99B", "2024A&A...683A..78G", "2023A&A...677A.133M", "2023A&A...672A.144C", "2022A&A...658A..31N", "2022A&A...665A..11H", "2022RNAAS...6..248M", "2021A&A...653A..98M", "2019A&A...624A.117S", "2019A&A...627A..71M", "2020ExA....50...73D", "2018SPIE10698E..4GF", "2018SPIE10698E..4XM", "2018SPIE10709E..0KP", "2018cosp...42E1438H", "2018haex.bookE..86R", "2019sf2a.conf..457S", "2020AN....341..519R", "2020ExA....50....1G", "2020SPIE11443E..12M", "2020SPIE11443E..4QR", "2020SPIE11443E..4VC", "2021SPIE11852E..3HG", "2021cosp...43E.503D", "2022SPIE12180E..1BC", "2022SPIE12180E..1CP", "2022SPIE12180E..1DB", "2022SPIE12180E..4HR", "2022SPIE12180E..4IM", "2022SPIE12180E..4JC", "2022SPIE12180E..4NP", "2022eas..conf.1081D", "2023MNRAS.518.3637B", "2023SPIE12777E..2RC", "2024A&A...692A..17K", "2024A&A...692A.150B", "2024CoSka..54b.142D", "2024MNRAS.528.2851M", "2024MNRAS.535.1778E", "2024SPIE13092E..15A", "2024SPIE13092E..46C", "2024SPIE13092E..47C", "2024SPIE13099E..0VA", "2024eas..conf..937C", "2024eas..conf.1601G", "2024eas..conf.2162A", "2024tkas.confE..22A", "2024tkas.confE..64J", "2024tsc3.confE..15E", "2025A&A...694A.185J", "2025A&A...694A.313N", "2025ExA....59...26R", "2025MNRAS.540.2578B", "2026A&A...706A.207P", "2026A&A...707A.200M", "2026A&A...708A.150L", "2026A&A...712A..33P", "2026MNRAS.550g1174M", "2026MNRAS.551g1557H", "2026Obs...146..192S"],
     "answer_must_match": ["2026"],
-    "note": "Outdated source in the corpus: Veras et al. (2015) says 'due for launch in 2024'. The router may also answer this from platochat_info alone, which is fine."
+    "note": "Outdated source in the corpus: Veras et al. (2015) says 'due for launch in 2024'. The router may also answer this from platochat_info alone, which is fine. More outdated dates: 2017/18 in Lindberg et al. (2008), Fridlund (2009), Claudi (2010), Rauer & Catala (2011); '2022/24' in Barban et al. (2013). The newest papers say early 2027 (Panetier et al. 2026: January 2027), so a correct answer names that and the earlier end-2026 date."
   },
   {
     "id": "field-of-view",
     "category": "recency",
     "question": "What is the combined field of view of PLATO's normal cameras?",
-    "expected_papers": ["2022A&A...658A..31N", "2022A&A...665A..11H", "2024A&A...681A..18J", "2024A&A...681A..99B"],
+    "expected_papers": ["2022A&A...658A..31N", "2022A&A...665A..11H", "2024A&A...681A..18J", "2024A&A...681A..99B", "2019A&A...627A..71M", "2022SPIE12180E..1CP", "2024MNRAS.535.1778E", "2024tsc3.confE..15E", "2025A&A...694A.185J", "2025ExA....59...26R", "2025MNRAS.540.2578B"],
     "answer_must_match": ["2[\\s,.]?132"],
-    "note": "Outdated value 2232 deg2 (34-camera design) in Miglio et al. (2017) and de Almeida et al. (2020)."
+    "note": "Outdated value 2232 deg2 (34-camera design) in Miglio et al. (2017) and de Almeida et al. (2020). Also 2232 deg2 in Rauer et al. (2014); Alvarez et al. (2024, abstract only) gives '> 2232 deg2' for all 26 cameras."
   },
   {
     "id": "cadence",
     "category": "instrument",
     "question": "What are the readout cadences of the normal and the fast cameras?",
-    "expected_papers": ["2024A&A...681A..18J", "2019A&A...627A..71M", "2019A&A...624A.117S", "2021A&A...653A..98M"],
-    "answer_must_match": ["\\b25\\b", "2\\.5"]
+    "expected_papers": ["2024A&A...681A..18J", "2019A&A...627A..71M", "2019A&A...624A.117S", "2021A&A...653A..98M", "2011IAUS..276..354R", "2012epsc.conf..415R", "2013ASPC..478..115B", "2013EPSC....8..707R", "2014ExA....38..249R", "2015EPJWC.10106050O", "2020ExA....50....1G", "2020ExA....50...73D", "2022A&A...658A..31N", "2022A&A...665A..11H", "2022RNAAS...6..248M", "2022SPIE12180E..1BC", "2022SPIE12180E..1EK", "2022SPIE12180E..4OV", "2023A&A...672A.144C", "2024A&A...692A..17K", "2024MNRAS.535.1778E", "2024SPIE13092E..47C", "2024eas..conf.1601G", "2025ExA....59...26R", "2026A&A...707A.200M", "2024ExA....58....1B"],
+    "answer_must_match": ["\\b25\\b", "2\\.5"],
+    "note": "Both cadences have been the same since the PLATO 2.0 design, so older papers answer this too."
   },
   {
     "id": "pixel-scale",
     "category": "instrument",
     "question": "What is PLATO's pixel scale on the sky?",
-    "expected_papers": ["2019A&A...627A..71M", "2021A&A...653A..98M", "2022A&A...658A..31N", "2022MNRAS.516.4432M", "2024A&A...681A..18J", "2014A&A...566A..92M"],
-    "answer_must_match": ["\\b15\\b"]
+    "expected_papers": ["2019A&A...627A..71M", "2021A&A...653A..98M", "2022A&A...658A..31N", "2022MNRAS.516.4432M", "2024A&A...681A..18J", "2014A&A...566A..92M", "2011IAUS..276..354R", "2014ExA....38..249R", "2015EPJWC.10106050O", "2019A&A...624A.117S", "2023MNRAS.518.3637B", "2024MNRAS.535.1778E", "2024tsc3.confE..15E", "2025A&A...694A.185J", "2025A&A...694A.313N", "2025ExA....59...26R", "2025MNRAS.540.2578B", "2025tasc.confE..29Z"],
+    "answer_must_match": ["\\b15\\b"],
+    "note": "Unchanged since the PLATO 2.0 design. Not to be confused with Yang et al. (2009), about the Antarctic PLATO observatory (15.7 arcsec per pixel)."
   },
   {
     "id": "ccd-timeshift",
     "category": "lookup",
     "question": "Are the four CCDs of a PLATO camera read out at the same moment, or is there a time offset between them?",
-    "expected_papers": ["2019A&A...624A.117S", "2024A&A...681A..18J"],
-    "answer_must_match": ["6\\.25"]
+    "expected_papers": ["2019A&A...624A.117S", "2024A&A...681A..18J", "2026MNRAS.550g1174M"],
+    "answer_must_match": ["6\\.25"],
+    "note": "Jannsen et al. (2025, MOCKA) gives 6.5 s instead; Barragan et al. (2024) describes the 6.25 s stagger between camera groups, not between the CCDs of one camera -- neither counted as answering."
   },
   {
     "id": "imagettes",
     "category": "instrument",
     "question": "What are imagettes, and for which targets are they downloaded?",
-    "expected_papers": ["2019A&A...627A..71M", "2021A&A...653A..98M", "2022A&A...658A..31N", "2022A&A...665A..11H", "2024A&A...681A..18J", "2019A&A...624A.117S"],
-    "answer_must_match": []
+    "expected_papers": ["2019A&A...627A..71M", "2021A&A...653A..98M", "2022A&A...658A..31N", "2022A&A...665A..11H", "2024A&A...681A..18J", "2019A&A...624A.117S", "2024ExA....58....1B", "2024MNRAS.535.1778E", "2025A&A...694A.313N", "2025ExA....59...26R", "2026A&A...707A.200M"],
+    "answer_must_match": [],
+    "note": "Counted only where a paper says both what imagettes are and which targets get them."
   },
   {
     "id": "aspic-size",
     "category": "lookup",
     "question": "How many stars does the all-sky PLATO input catalogue contain?",
-    "expected_papers": ["2021A&A...653A..98M"],
+    "expected_papers": ["2021A&A...653A..98M", "2024A&A...692A.150B", "2024MNRAS.535.1778E"],
     "answer_must_match": ["2[\\s,.]?675[\\s,.]?539|2\\.[67]\\d* ?million"],
     "expect_flag": false
   },
@@ -64,72 +68,76 @@
     "id": "aspic-gaia",
     "category": "lookup",
     "question": "Which Gaia data release was the asPIC built from?",
-    "expected_papers": ["2021A&A...653A..98M"],
-    "answer_must_match": ["DR ?2|Data Release 2"]
+    "expected_papers": ["2021A&A...653A..98M", "2022A&A...658A..31N", "2022MNRAS.516.4432M", "2023MNRAS.518.3637B", "2024A&A...692A.150B", "2026A&A...706A.207P"],
+    "answer_must_match": ["DR ?2|Data Release 2"],
+    "note": "Prisinzano et al. (2026) adds that a newer PIC (2.1.0.1) has been released since; Eschen et al. (2024) cites Gaia DR3 next to the PIC's star count, which could mislead."
   },
   {
     "id": "stellar-samples",
     "category": "instrument",
     "question": "How are the PLATO stellar samples P1, P2, P4 and P5 defined?",
-    "expected_papers": ["2021A&A...653A..98M", "2022A&A...658A..31N", "2024A&A...683A..78G"],
-    "answer_must_match": ["(?i)F5"]
+    "expected_papers": ["2021A&A...653A..98M", "2022A&A...658A..31N", "2024A&A...683A..78G", "2024MNRAS.535.1778E", "2024tsc3.confE..15E", "2025A&A...694A.313N", "2025ExA....59...26R"],
+    "answer_must_match": ["(?i)F5"],
+    "note": "Counted where a paper characterises at least three of the four samples; papers defining only P1 or P5 are not."
   },
   {
     "id": "lops2-where",
     "category": "identifier",
     "question": "Where on the sky is LOPS2?",
-    "expected_papers": ["2024CoSka..54b.142D", "2024MNRAS.528.2851M"],
+    "expected_papers": ["2024CoSka..54b.142D", "2024MNRAS.528.2851M", "2024A&A...692A.150B", "2024MNRAS.535.1778E", "2024eas..conf..871T", "2024tkas.confE..22A", "2024tsc3.confE..15E", "2025A&A...694A.185J", "2025A&A...694A.313N", "2025ExA....59...26R", "2025MNRAS.540.2578B", "2026A&A...706A.207P", "2026A&A...712A..33P", "2026ExA....61...23U", "2026Obs...146..192S"],
     "answer_must_match": ["(?i)south"],
-    "note": "An identifier the embedding model has little to go on; mostly a test of the BM25 half."
+    "note": "An identifier the embedding model has little to go on; mostly a test of the BM25 half. Most papers only call it the southern field; Bray et al. (2025) and Nascimbeni et al. (2025) give its centre (l = 255.9375 deg, b = -24.62432 deg)."
   },
   {
     "id": "lops2-from-europe",
     "category": "lookup",
     "question": "Can the first PLATO long-observation field be followed up with ground-based telescopes in Europe?",
-    "expected_papers": ["2024CoSka..54b.142D"],
+    "expected_papers": ["2024CoSka..54b.142D", "2025A&A...694A.313N"],
     "answer_must_match": ["(?i)cannot|can ?not|not (be )?(meaningfully )?observ|marginal"]
   },
   {
     "id": "aperture-mask",
     "category": "lookup",
     "question": "Which kind of aperture is used for the on-board photometry of P5 stars, and why was it chosen?",
-    "expected_papers": ["2019A&A...627A..71M"],
+    "expected_papers": ["2019A&A...627A..71M", "2019A&A...624A.117S", "2024A&A...681A..18J", "2025MNRAS.540.2578B"],
     "answer_must_match": ["(?i)binary (mask|aperture)"],
-    "note": "Read the answer: it should say that the binary mask was the one chosen (best compromise between noise and rejecting false positives), not merely list the three mask types that were compared."
+    "note": "Read the answer: it should say that the binary mask was the one chosen (best compromise between noise and rejecting false positives), not merely list the three mask types that were compared. Rauer et al. (2025), Borner et al. (2024) and Bray et al. (2023) name the binary mask without the reason; not counted."
   },
   {
     "id": "nsr",
     "category": "identifier",
     "question": "What does NSR stand for in the PLATO papers, and what is it used for?",
-    "expected_papers": ["2019A&A...627A..71M", "2019A&A...624A.117S", "2024A&A...681A..18J", "2014A&A...566A..92M", "2022A&A...658A..31N", "2022A&A...665A..11H", "2023A&A...677A.133M"],
+    "expected_papers": ["2019A&A...627A..71M", "2019A&A...624A.117S", "2024A&A...681A..18J", "2014A&A...566A..92M", "2022A&A...658A..31N", "2022A&A...665A..11H", "2023A&A...677A.133M", "2024ExA....58....1B", "2025A&A...694A.185J", "2025A&A...694A.313N", "2025ExA....59...26R", "2026ExA....61...23U", "2026MNRAS.550g1174M"],
     "answer_must_match": ["(?i)noise[- ]to[- ]signal"]
   },
   {
     "id": "psls",
     "category": "identifier",
     "question": "What is PSLS?",
-    "expected_papers": ["2019A&A...624A.117S", "2022A&A...665A..11H"],
+    "expected_papers": ["2019A&A...624A.117S", "2022A&A...665A..11H", "2023A&A...672A.144C", "2023MNRAS.522..488K", "2024A&A...689A.229B", "2024A&A...692A.150B", "2024ExA....58....1B", "2024MNRAS.535.1778E", "2024RASTI...3..198B", "2025ExA....59...26R"],
     "answer_must_match": ["(?i)light[- ]?curve simulator"]
   },
   {
     "id": "platosim",
     "category": "lookup",
     "question": "What is PlatoSim and what does it simulate?",
-    "expected_papers": ["2024A&A...681A..18J", "2014A&A...566A..92M"],
-    "answer_must_match": []
+    "expected_papers": ["2024A&A...681A..18J", "2014A&A...566A..92M", "2021plat.confE...6J", "2022eas..conf.1320J", "2023plat.confE..52J", "2024A&A...692A..17K", "2024ExA....58....1B", "2025A&A...694A.185J", "2025A&A...694A.293V", "2025ExA....59...26R", "2026A&A...707A.200M", "2026ExA....61...23U", "2026MNRAS.550g1174M"],
+    "answer_must_match": [],
+    "note": "Counted where a paper says what PlatoSim is and what it simulates, not where it is only named or cited."
   },
   {
     "id": "earth-yield",
     "category": "lookup",
     "question": "How many Earth-sized planets in the habitable zone of Sun-like stars is PLATO expected to detect?",
-    "expected_papers": ["2022A&A...665A..11H", "2023A&A...677A.133M"],
-    "answer_must_match": ["\\b11\\b|dozen"]
+    "expected_papers": ["2022A&A...665A..11H", "2023A&A...677A.133M", "2025ExA....59...26R"],
+    "answer_must_match": ["\\b11\\b|dozen"],
+    "note": "Rauer et al. (2025) tabulates the published estimates (Red Book 6-280, Heller 11-34, Cabrera 0-95, Matuszewski ~45). Boettner et al. (2024) estimates 20-130 Earth-like planets with 250-500 d periods, a different quantity; papers that only state the goal are not counted."
   },
   {
     "id": "yield-strategy",
     "category": "lookup",
     "question": "Would a 3+1 year observing strategy find more planets than two long pointings of 2 years each?",
-    "expected_papers": ["2023A&A...677A.133M", "2022A&A...665A..11H"],
+    "expected_papers": ["2023A&A...677A.133M", "2022A&A...665A..11H", "2025ExA....59...26R"],
     "answer_must_match": ["(?i)twice|habitable"]
   },
   {
@@ -137,7 +145,8 @@
     "category": "lookup",
     "question": "For how many stars is PLATO expected to detect solar-like oscillations?",
     "expected_papers": ["2024A&A...683A..78G"],
-    "answer_must_match": ["15[\\s,.]?000|30[\\s,.]?000"]
+    "answer_must_match": ["15[\\s,.]?000|30[\\s,.]?000"],
+    "note": "Rauer et al. (2025) discusses the seismic yield but gives only subsets (e.g. 1844 stars with dM/M < 15% and dR/R <= 2%) and refers to Goupil et al. (2024)."
   },
   {
     "id": "hare-and-hounds",
@@ -151,7 +160,7 @@
     "id": "sapp",
     "category": "identifier",
     "question": "What is SAPP and which stellar parameters does it deliver?",
-    "expected_papers": ["2022A&A...658A.147G"],
+    "expected_papers": ["2022A&A...658A.147G", "2021plat.confE..80B"],
     "answer_must_match": ["(?i)abundance"]
   },
   {
@@ -167,7 +176,8 @@
     "category": "lookup",
     "question": "Which stellar-activity filtering algorithms were compared for transit detection with PLATO, and which did best?",
     "expected_papers": ["2023A&A...672A.144C"],
-    "answer_must_match": ["(?i)N&(amp;)?L|notch|biweight|VARLET|YSD"]
+    "answer_must_match": ["(?i)N&(amp;)?L|notch|biweight|VARLET|YSD"],
+    "note": "Mitchell et al. (2026), Jannsen et al. (2024) and Heller et al. (2022) use the biweight filter on the strength of Hippke et al. (2019), not a PLATO comparison; not counted."
   },
   {
     "id": "monotransits",
@@ -196,7 +206,8 @@
     "category": "lookup",
     "question": "Which model atmospheres and codes were used to compute the PLATO consortium's first limb-darkening coefficients?",
     "expected_papers": ["2022RNAAS...6..248M"],
-    "answer_must_match": ["(?i)MARCS"]
+    "answer_must_match": ["(?i)MARCS"],
+    "note": "Kostogryz et al. (2022) computed a separate MPS-ATLAS library, explicitly not the consortium's; other papers compute their own coefficients (ATLAS, PHOENIX)."
   },
   {
     "id": "mps-atlas",
@@ -216,7 +227,7 @@
     "id": "galactic-archaeology",
     "category": "lookup",
     "question": "Why is PLATO useful for Galactic archaeology?",
-    "expected_papers": ["2017AN....338..644M"],
+    "expected_papers": ["2017AN....338..644M", "2025ExA....59...26R"],
     "answer_must_match": ["(?i)age"]
   },
   {
@@ -244,7 +255,7 @@
     "id": "frequency-with-age",
     "category": "lookup",
     "question": "Could PLATO detect a decrease of exoplanet frequency with the age of the host star?",
-    "expected_papers": ["2015MNRAS.453...67V"],
+    "expected_papers": ["2015MNRAS.453...67V", "2017EPSC...11...49V"],
     "answer_must_match": []
   },
   {
@@ -259,7 +270,8 @@
     "category": "identifier",
     "question": "Which detrending software was used in the transit least-squares study of simulated PLATO light curves?",
     "expected_papers": ["2022A&A...665A..11H"],
-    "answer_must_match": ["(?i)w[oō]tan"]
+    "answer_must_match": ["(?i)w[oō]tan"],
+    "note": "Other papers use Wotan in their own studies (Mitchell et al. 2026, Jannsen et al. 2024 and 2025, Canocchi et al. 2023); only Heller et al. (2022) is the TLS study."
   },
   {
     "id": "followup-fast-cameras",
@@ -269,7 +281,7 @@
       {"role": "ai", "content": "The normal cameras are read out every 25 seconds."}
     ],
     "question": "And the fast ones?",
-    "expected_papers": ["2024A&A...681A..18J", "2019A&A...627A..71M", "2019A&A...624A.117S", "2021A&A...653A..98M"],
+    "expected_papers": ["2024A&A...681A..18J", "2019A&A...627A..71M", "2019A&A...624A.117S", "2021A&A...653A..98M", "2011IAUS..276..354R", "2012epsc.conf..415R", "2013ASPC..478..115B", "2013EPSC....8..707R", "2014A&A...566A..92M", "2014ExA....38..249R", "2015EPJWC.10106050O", "2020ExA....50....1G", "2020ExA....50...73D", "2022A&A...658A..31N", "2022A&A...665A..11H", "2022RNAAS...6..248M", "2022SPIE12180E..1BC", "2022SPIE12180E..1EK", "2022SPIE12180E..4OV", "2023A&A...672A.144C", "2024A&A...692A..17K", "2024MNRAS.535.1778E", "2024SPIE13092E..47C", "2024eas..conf.1601G", "2025ExA....59...26R", "2026A&A...707A.200M", "2024ExA....58....1B"],
     "answer_must_match": ["2\\.5"],
     "note": "Only meaningful with the router, which has to turn this into a standalone query. Skipped in retrieval-only mode."
   },
