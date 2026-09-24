@@ -5,12 +5,14 @@ One command for the whole ingest, safe to run every night (see cron_update.sh):
 
 1. metadata  refresh papers.json from the PLATO-Pub list and ADS
              (fetch_metadata.py)
-2. fetch     download and convert the full text of every paper that may have
+2. licences  record under what licence each paper, and the copy of it we
+             hold, is published (fetch_licences.py). It also decides what may
+             be indexed: a copy the authors put in the open (arXiv, a
+             repository) whatever its licence, a publisher's copy only under
+             an open one -- so it runs before anything is downloaded
+3. fetch     download and convert the full text of every paper that may have
              one and does not yet (fetch_fulltext.py; LaTeXML for LaTeX,
              marker for PDFs)
-3. licences  record under what licence each paper, and the copy of it we
-             indexed, is published (fetch_licences.py). Recorded only, in the
-             manifest: nothing is left out of the index because of it
 4. index     bring the Weaviate collection in line with the list: write the
              objects of papers that are new or changed, delete those of papers
              that left it (reindex_weaviate.py)
@@ -77,6 +79,8 @@ DEFAULT_ENV = os.path.join(HERE, os.pardir, "platochat", ".env")
 # What the manifest says about a paper.
 FULLTEXT = "full text"        # markdown converted and checked
 ABSTRACT = "abstract only"    # paywalled: no full text, by policy
+UNLICENSED = "not indexable"  # full text held, but a publisher's copy with no open
+                              # licence: indexed by its abstract (fetch_licences.indexable)
 PENDING = "pending"           # full text allowed, a source still to try
 RETRY = "retry"               # a source failed for now (timeout, arXiv refusing); next round or run
 FAILED = "failed"             # every allowed source failed; abstract only until something changes
@@ -98,8 +102,10 @@ MARKER_STARTUP = 900          # seconds for marker to load its models
 
 MANIFEST_ABOUT = (
     "Per-paper state of the PLATO ingest, written by ingest/update_corpus.py. "
-    "'state' is one of: full text, abstract only (paywalled), pending, retry, "
-    "failed, removed. To have a paper fetched and converted again, run "
+    "'state' is one of: full text, abstract only (paywalled), not indexable (a "
+    "publisher's copy with no open licence, so the abstract is indexed instead), "
+    "pending, retry, failed, removed. To have a paper fetched and converted "
+    "again, run "
     "update_corpus.py --only <bibcode> --redo. 'licence' says under what licence "
     "the paper, and the copy of it that was indexed, is published, and what "
     "arXiv, Crossref, DataCite and OpenAlex said (see ingest/fetch_licences.py)."
@@ -194,6 +200,13 @@ def remaining_sources(entry: dict) -> list[str]:
             or (tried[s].get("transient") and tried[s].get("count", 0) < MAX_TRANSIENT_TRIES)]
 
 
+def set_sources(entry: dict, rec: dict, paths: Paths) -> None:
+    """Where this paper's full text may come from, under both rules: access
+    (fetch_fulltext) and, for a publisher's copy, licence (fetch_licences)."""
+    entry["sources"] = fetch_licences.allowed_sources(
+        entry, fulltext_sources(rec, manual_pdf(paths, rec)))
+
+
 def set_aside(paths: Paths, name: str) -> None:
     """Move a paper's markdown and images out of the corpus, keeping them for reference."""
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -205,10 +218,10 @@ def set_aside(paths: Paths, name: str) -> None:
 
 
 def derive_state(entry: dict) -> str:
+    if entry.get("fulltext"):
+        return FULLTEXT if fetch_licences.indexable(entry) else UNLICENSED
     if not entry.get("sources"):
         return ABSTRACT
-    if entry.get("fulltext"):
-        return FULLTEXT
     remaining = remaining_sources(entry)
     if not remaining:
         return FAILED
@@ -251,7 +264,7 @@ def reconcile(manifest: dict, papers: dict, aliases: dict, paths: Paths, *,
         entry["title"] = rec.get("title") or ""
         entry["access"] = access_of(rec)
         manual = manual_pdf(paths, rec)
-        entry["sources"] = fulltext_sources(rec, manual)
+        set_sources(entry, rec, paths)
 
         inputs = inputs_of(rec)
         if entry.get("inputs") != inputs:
@@ -501,7 +514,9 @@ def finish(bib: str, rec: dict, entry: dict, got: Fetched, job: dict, paths: Pat
         "markdown": bib + ".md", "markdown_sha256": sha256_text(text), "at": now_iso(),
         **({"note": got.note} if got.note else {}),
     }
-    entry["state"] = FULLTEXT
+    if "licence" in entry:
+        fetch_licences.summarise(entry, rec)      # the copy it describes has changed
+    entry["state"] = derive_state(entry)
     log(f"  {bib}  {got.source}: converted with {job['converter']} in {job['seconds']:.0f} s")
     return True
 
@@ -613,7 +628,8 @@ def index_stage(manifest: dict, papers: dict, paths: Paths, args,
             entry = entries[bib]
             markdown = md_sha = None
             ft = entry.get("fulltext")
-            if entry["state"] == FULLTEXT and ft and fulltext_allowed(rec):
+            if (entry["state"] == FULLTEXT and ft and fulltext_allowed(rec)
+                    and fetch_licences.indexable(entry)):
                 path = os.path.join(paths.md, ft["markdown"])
                 if os.path.exists(path):
                     with open(path, encoding="utf-8") as fh:
@@ -719,7 +735,8 @@ def summary(manifest: dict, papers: dict) -> None:
         f"{access['open access']} open access elsewhere, {access['paywalled']} paywalled")
     log(f"  full text:      {states[FULLTEXT]}  "
         f"({', '.join(f'{k} {v}' for k, v in sources.most_common())})")
-    log(f"  abstract only:  {len(entries) - states[FULLTEXT]}  ({states[ABSTRACT]} paywalled, "
+    log(f"  abstract only:  {len(entries) - states[FULLTEXT]}  ({states[ABSTRACT]} no full text "
+        f"we may index, {states[UNLICENSED]} a publisher's copy we hold but leave out, "
         f"{states[FAILED]} failed, {states[RETRY]} to retry, {states[PENDING]} not tried yet"
         + (f", {states[DOWNLOADED]} being converted" if states[DOWNLOADED] else "") + ")")
     removed = sum(1 for e in manifest["papers"].values() if e["state"] == REMOVED)
@@ -751,8 +768,8 @@ def main() -> int:
     ap.add_argument("--md-dir", default=DEFAULT_MD_DIR, help="the markdown corpus")
     ap.add_argument("--metadata", default=DEFAULT_METADATA)
     ap.add_argument("--env", default=DEFAULT_ENV, help="file holding ADS_API_KEY")
-    ap.add_argument("--stages", default="metadata,fetch,licences,index",
-                    help="which steps to run (default: metadata,fetch,licences,index)")
+    ap.add_argument("--stages", default="metadata,licences,fetch,index",
+                    help="which steps to run (default: metadata,licences,fetch,index)")
     ap.add_argument("--dry-run", action="store_true",
                     help="say what would be done; download, convert and write nothing")
     ap.add_argument("--status", action="store_true", help="summarise the manifest and stop")
@@ -833,15 +850,10 @@ def run(args, paths: Paths, manifest: dict, stages: set[str], ap) -> int:
     if not args.dry_run:
         save_manifest(paths.manifest, manifest)
 
-    added: list[str] = []
-    if "fetch" in stages:
-        log("\n2. Fetch and convert")
-        added = fetch_stage(manifest, papers, paths, args, problems)
-
-    # Not a problem for the exit code when it fails: nothing depends on it yet,
-    # and whatever could not be looked up is asked again on the next run.
+    # A lookup that fails is not a problem for the exit code: it is asked again
+    # on the next run, and until then the paper keeps the sources it had.
     if "licences" in stages:
-        log("\n3. Licences")
+        log("\n2. Licences")
         try:
             done = fetch_licences.update_licences(
                 manifest["papers"], papers, only=args.only, force=args.recheck_licences,
@@ -850,8 +862,18 @@ def run(args, paths: Paths, manifest: dict, stages: set[str], ap) -> int:
                 log("  " + ", ".join(f"{v} {k}" for k, v in done.items()))
         except Exception as exc:
             log(f"  ! licence lookup failed: {type(exc).__name__}: {exc}")
+        # A licence just looked up can open a publisher's copy for downloading,
+        # or close one: the fetch step below goes by these.
+        for bib, rec in papers.items():
+            set_sources(manifest["papers"][bib], rec, paths)
+            manifest["papers"][bib]["state"] = derive_state(manifest["papers"][bib])
         if not args.dry_run:
             save_manifest(paths.manifest, manifest)
+
+    added: list[str] = []
+    if "fetch" in stages:
+        log("\n3. Fetch and convert")
+        added = fetch_stage(manifest, papers, paths, args, problems)
 
     stats: Counter = Counter()
     if "index" in stages:

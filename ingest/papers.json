@@ -1,7 +1,7 @@
 {
- "fetched_at": "2026-09-21T14:51:59Z",
+ "fetched_at": "2026-09-24T12:21:55Z",
  "list_url": "https://platopub.phys.au.dk/about/ads_middleware.php",
- "n_papers": 179,
+ "n_papers": 178,
  "papers": {
   "2006ESASP1306..497C": {
    "bibcode": "2006ESASP1306..497C",
@@ -722,178 +722,6 @@
    ],
    "feed_bibcode": "2009IAUS..253..564F"
   },
-  "2009PASP..121..174Y": {
-   "bibcode": "2009PASP..121..174Y",
-   "abstract": "The PLATeau Observatory (PLATO) is an automated self-powered astrophysical observatory that was deployed to Dome A, the highest point on the Antarctic plateau, in 2008 January. PLATO consists of a suite of site-testing instruments designed to quantify the benefits of the Dome A site for astronomy, and science instruments designed to take advantage of the unique observing conditions. Instruments include CSTAR, an array of optical telescopes for transient astronomy; Gattini, an instrument to measure the optical sky brightness and cloud cover statistics; DASLE, an experiment to measure the statistics of the meteorological conditions within the near-surface layer; Pre-HEAT, a submillimeter tipping radiometer measuring the atmospheric transmission and water vapor content and performing spectral line imaging of the Galactic plane; and Snodar, an acoustic radar designed to measure turbulence within the near-surface layer. PLATO has run completely unattended and collected data throughout the winter 2008 season. Here we present a detailed description of the PLATO instrument suite and preliminary results obtained from the first season of operation.",
-   "aff": [
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-"
-   ],
-   "author": [
-    "Yang, H.",
-    "Allen, G.",
-    "Ashley, M. C. B.",
-    "Bonner, C. S.",
-    "Bradley, S.",
-    "Cui, X.",
-    "Everett, J. R.",
-    "Feng, L.",
-    "Gong, X.",
-    "Hengst, S.",
-    "Hu, J.",
-    "Jiang, Z.",
-    "Kulesa, C. A.",
-    "Lawrence, J. S.",
-    "Li, Y.",
-    "Luong-Van, D.",
-    "McCaughrean, M. J.",
-    "Moore, A. M.",
-    "Pennypacker, C.",
-    "Qin, W.",
-    "Riddle, R.",
-    "Shang, Z.",
-    "Storey, J. W. V.",
-    "Sun, B.",
-    "Suntzeff, N.",
-    "Tothill, N. F. H.",
-    "Travouillon, T.",
-    "Walker, C. K.",
-    "Wang, L.",
-    "Yan, J.",
-    "Yang, J.",
-    "York, D.",
-    "Yuan, X.",
-    "Zhang, X.",
-    "Zhang, Z.",
-    "Zhou, X.",
-    "Zhu, Z."
-   ],
-   "author_count": 37,
-   "bibstem": [
-    "PASP",
-    "PASP..121"
-   ],
-   "database": [
-    "astronomy"
-   ],
-   "date": "2009-02-01T00:00:00Z",
-   "doctype": "article",
-   "doi": [
-    "10.1086/597547"
-   ],
-   "first_author": "Yang, H.",
-   "identifier": [
-    "10.1086/597547",
-    "2009PASP..121..174Y"
-   ],
-   "issue": "876",
-   "orcid_pub": [
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-"
-   ],
-   "page": [
-    "174"
-   ],
-   "pub": "Publications of the Astronomical Society of the Pacific",
-   "pub_raw": "Publications of the Astronomical Society of the Pacific, Volume 121, Issue 876, pp. 174 (2009).",
-   "pubdate": "2009-02-00",
-   "title": "The PLATO Dome A Site-Testing Observatory: Instrumentation and First Results",
-   "volume": "121",
-   "year": "2009",
-   "entry_date": "2017-01-29T00:00:00Z",
-   "page_range": "174",
-   "read_count": 0,
-   "esources": [
-    "PUB_HTML",
-    "PUB_PDF"
-   ],
-   "property": [
-    "ARTICLE",
-    "ESOURCE",
-    "OPENACCESS",
-    "PUB_OPENACCESS",
-    "REFEREED"
-   ],
-   "citation_count": 55,
-   "arxiv_id": "",
-   "pubdate_display": "2009-02",
-   "short_ref": "Yang et al. (2009)",
-   "ads_url": "https://ui.adsabs.harvard.edu/abs/2009PASP..121..174Y",
-   "aliases": [
-    "2009PASP..121..174Y"
-   ],
-   "feed_bibcode": "2009PASP..121..174Y"
-  },
   "2009RScI...80f4501L": {
    "bibcode": "2009RScI...80f4501L",
    "abstract": "The atmospheric conditions above Dome A, a currently unmanned location at the highest point on the Antarctic plateau, are uniquely suited to astronomy. For certain types of astronomy Dome A is likely to be the best location on the planet, and this has motivated the development of the Plateau Observatory (PLATO). PLATO was deployed to Dome A in early 2008. It houses a suite of purpose-built site-testing instruments designed to quantify the benefits of Dome A site for astronomy, and science instruments designed to take advantage of the observing conditions. The PLATO power generation and control system is designed to provide continuous power and heat, and a high-reliability command and communications platform for these instruments. PLATO has run and collected data throughout the winter 2008 season completely unattended. Here we present a detailed description of the power generation, power control, thermal management, instrument interface, and communications systems for PLATO, and an overview of the system performance for 2008.",
@@ -1136,7 +964,7 @@
    "year": "2010",
    "entry_date": "2010-10-10T00:00:00Z",
    "page_range": "260",
-   "read_count": 1,
+   "read_count": 0,
    "esources": [
     "ADS_PDF",
     "ADS_SCAN",
@@ -1888,7 +1716,7 @@
    "year": "2013",
    "entry_date": "2014-02-02T00:00:00Z",
    "page_range": "115",
-   "read_count": 1,
+   "read_count": 0,
    "esources": [
     "ADS_PDF",
     "ADS_SCAN",
@@ -2065,7 +1893,7 @@
    "year": "2014",
    "page_count": 12,
    "entry_date": "2014-06-22T00:00:00Z",
-   "read_count": 213,
+   "read_count": 173,
    "esources": [
     "EPRINT_HTML",
     "EPRINT_PDF",
@@ -2639,7 +2467,7 @@
    "page_count": 82,
    "entry_date": "2014-12-21T00:00:00Z",
    "page_range": "249-330",
-   "read_count": 504,
+   "read_count": 476,
    "esources": [
     "EPRINT_HTML",
     "EPRINT_PDF",
@@ -2652,7 +2480,7 @@
     "OPENACCESS",
     "REFEREED"
    ],
-   "citation_count": 1274,
+   "citation_count": 1277,
    "arxiv_id": "1310.0696",
    "pubdate_display": "2014-11",
    "short_ref": "Rauer et al. (2014)",
@@ -2728,7 +2556,7 @@
    "volume": "101",
    "year": "2015",
    "entry_date": "2015-10-18T00:00:00Z",
-   "read_count": 92,
+   "read_count": 65,
    "esources": [
     "EPRINT_HTML",
     "EPRINT_PDF",
@@ -2830,7 +2658,7 @@
    "page_count": 6,
    "entry_date": "2015-08-16T00:00:00Z",
    "page_range": "67-72",
-   "read_count": 140,
+   "read_count": 116,
    "data": [
     "SIMBAD:2"
    ],
@@ -4782,7 +4610,7 @@
    "page_count": 18,
    "entry_date": "2022-08-14T00:00:00Z",
    "page_range": "644-661",
-   "read_count": 266,
+   "read_count": 233,
    "esources": [
     "EPRINT_HTML",
     "EPRINT_PDF",
@@ -6011,7 +5839,7 @@
    "year": "2019",
    "page_count": 19,
    "entry_date": "2019-04-28T00:00:00Z",
-   "read_count": 223,
+   "read_count": 165,
    "data": [
     "SIMBAD:4"
    ],
@@ -6134,7 +5962,7 @@
    "year": "2019",
    "page_count": 20,
    "entry_date": "2019-07-07T00:00:00Z",
-   "read_count": 142,
+   "read_count": 97,
    "esources": [
     "EPRINT_HTML",
     "EPRINT_PDF",
@@ -6607,7 +6435,7 @@
    "page_count": 38,
    "entry_date": "2020-08-30T00:00:00Z",
    "page_range": "519-556",
-   "read_count": 141,
+   "read_count": 100,
    "esources": [
     "EPRINT_HTML",
     "EPRINT_PDF",
@@ -6808,7 +6636,7 @@
    "page_count": 49,
    "entry_date": "2020-08-02T00:00:00Z",
    "page_range": "1-49",
-   "read_count": 178,
+   "read_count": 127,
    "data": [
     "Gemini:1"
    ],
@@ -6926,7 +6754,7 @@
    "page_count": 18,
    "entry_date": "2020-08-02T00:00:00Z",
    "page_range": "73-90",
-   "read_count": 119,
+   "read_count": 82,
    "esources": [
     "EPRINT_HTML",
     "EPRINT_PDF",
@@ -7101,7 +6929,7 @@
    "page_count": 10,
    "entry_date": "2021-03-14T00:00:00Z",
    "page_range": "5489-5498",
-   "read_count": 170,
+   "read_count": 155,
    "data": [
     "SIMBAD:1"
    ],
@@ -8092,7 +7920,7 @@
    "year": "2020",
    "page_count": 7,
    "entry_date": "2021-01-10T00:00:00Z",
-   "read_count": 131,
+   "read_count": 105,
    "esources": [
     "EPRINT_HTML",
     "EPRINT_PDF",
@@ -8282,7 +8110,7 @@
    "year": "2021",
    "page_count": 23,
    "entry_date": "2021-09-19T00:00:00Z",
-   "read_count": 221,
+   "read_count": 178,
    "data": [
     "EMAC:1",
     "SIMBAD:2"
@@ -8443,7 +8271,7 @@
    "page_count": 22,
    "entry_date": "2021-11-08T00:00:00Z",
    "page_range": "5864-5885",
-   "read_count": 174,
+   "read_count": 133,
    "esources": [
     "EPRINT_HTML",
     "EPRINT_PDF",
@@ -9125,7 +8953,7 @@
    "year": "2022",
    "page_count": 16,
    "entry_date": "2022-01-30T00:00:00Z",
-   "read_count": 275,
+   "read_count": 230,
    "data": [
     "SIMBAD:46"
    ],
@@ -9305,7 +9133,7 @@
    "year": "2022",
    "page_count": 23,
    "entry_date": "2022-02-20T00:00:00Z",
-   "read_count": 244,
+   "read_count": 202,
    "data": [
     "IRSA:1",
     "SIMBAD:33"
@@ -9325,7 +9153,7 @@
     "PUB_OPENACCESS",
     "REFEREED"
    ],
-   "citation_count": 32,
+   "citation_count": 34,
    "arxiv_id": "2111.06666",
    "pubdate_display": "2022-02",
    "short_ref": "Gent et al. (2022)",
@@ -9408,7 +9236,7 @@
    "year": "2022",
    "page_count": 19,
    "entry_date": "2022-10-09T00:00:00Z",
-   "read_count": 261,
+   "read_count": 219,
    "data": [
     "SIMBAD:3"
    ],
@@ -9522,7 +9350,7 @@
    "year": "2022",
    "page_count": 18,
    "entry_date": "2023-07-30T00:00:00Z",
-   "read_count": 153,
+   "read_count": 113,
    "esources": [
     "EPRINT_HTML",
     "EPRINT_PDF",
@@ -9538,7 +9366,7 @@
     "PUB_OPENACCESS",
     "REFEREED"
    ],
-   "citation_count": 38,
+   "citation_count": 40,
    "arxiv_id": "2206.06641",
    "pubdate_display": "2022-10",
    "short_ref": "Kostogryz et al. (2022)",
@@ -9713,7 +9541,7 @@
    "page_count": 16,
    "entry_date": "2022-09-25T00:00:00Z",
    "page_range": "4432-4447",
-   "read_count": 217,
+   "read_count": 159,
    "data": [
     "SIMBAD:29"
    ],
@@ -9833,7 +9661,7 @@
    "volume": "6",
    "year": "2022",
    "entry_date": "2024-01-14T00:00:00Z",
-   "read_count": 147,
+   "read_count": 103,
    "esources": [
     "EPRINT_HTML",
     "EPRINT_PDF",
@@ -11447,7 +11275,9 @@
     "eas..conf"
    ],
    "database": [
-    "astronomy"
+    "astronomy",
+    "astrophysics",
+    "planetary"
    ],
    "date": "2022-07-01T00:00:00Z",
    "doctype": "inproceedings",
@@ -11691,7 +11521,7 @@
    "year": "2023",
    "page_count": 24,
    "entry_date": "2023-04-23T00:00:00Z",
-   "read_count": 180,
+   "read_count": 122,
    "data": [
     "SIMBAD:1"
    ],
@@ -11809,7 +11639,7 @@
    "year": "2023",
    "page_count": 26,
    "entry_date": "2023-07-30T00:00:00Z",
-   "read_count": 176,
+   "read_count": 133,
    "data": [
     "SIMBAD:16"
    ],
@@ -11912,7 +11742,7 @@
    "year": "2023",
    "page_count": 14,
    "entry_date": "2023-09-24T00:00:00Z",
-   "read_count": 250,
+   "read_count": 213,
    "esources": [
     "EPRINT_HTML",
     "EPRINT_PDF",
@@ -12024,7 +11854,7 @@
    "page_count": 16,
    "entry_date": "2022-12-04T00:00:00Z",
    "page_range": "3637-3652",
-   "read_count": 176,
+   "read_count": 131,
    "esources": [
     "EPRINT_HTML",
     "EPRINT_PDF",
@@ -12135,7 +11965,7 @@
    "page_count": 15,
    "entry_date": "2023-04-23T00:00:00Z",
    "page_range": "488-502",
-   "read_count": 108,
+   "read_count": 87,
    "data": [
     "SIMBAD:15"
    ],
@@ -12609,7 +12439,7 @@
    "year": "2024",
    "page_count": 30,
    "entry_date": "2024-05-26T00:00:00Z",
-   "read_count": 316,
+   "read_count": 275,
    "data": [
     "SIMBAD:5"
    ],
@@ -12711,7 +12541,7 @@
    "year": "2024",
    "page_count": 14,
    "entry_date": "2024-01-28T00:00:00Z",
-   "read_count": 128,
+   "read_count": 97,
    "data": [
     "SIMBAD:17"
    ],
@@ -12888,7 +12718,7 @@
    "year": "2024",
    "page_count": 24,
    "entry_date": "2024-03-17T00:00:00Z",
-   "read_count": 177,
+   "read_count": 144,
    "data": [
     "SIMBAD:4"
    ],
@@ -13051,7 +12881,7 @@
    "year": "2024",
    "page_count": 19,
    "entry_date": "2024-09-22T00:00:00Z",
-   "read_count": 205,
+   "read_count": 180,
    "data": [
     "SIMBAD:1"
    ],
@@ -13181,7 +13011,7 @@
    "year": "2024",
    "page_count": 11,
    "entry_date": "2024-12-08T00:00:00Z",
-   "read_count": 188,
+   "read_count": 138,
    "data": [
     "SIMBAD:3"
    ],
@@ -13285,7 +13115,7 @@
    "year": "2024",
    "page_count": 20,
    "entry_date": "2024-12-15T00:00:00Z",
-   "read_count": 251,
+   "read_count": 217,
    "data": [
     "SIMBAD:47",
     "vizier:1"
@@ -13384,7 +13214,7 @@
    "page_count": 8,
    "entry_date": "2024-03-03T00:00:00Z",
    "page_range": "142-149",
-   "read_count": 182,
+   "read_count": 164,
    "esources": [
     "ADS_PDF",
     "ADS_SCAN",
@@ -13542,7 +13372,7 @@
    "volume": "58",
    "year": "2024",
    "entry_date": "2024-06-30T00:00:00Z",
-   "read_count": 302,
+   "read_count": 355,
    "esources": [
     "EPRINT_HTML",
     "EPRINT_PDF",
@@ -13669,7 +13499,7 @@
    "page_count": 20,
    "entry_date": "2024-02-04T00:00:00Z",
    "page_range": "2851-2870",
-   "read_count": 183,
+   "read_count": 146,
    "data": [
     "IRSA:2",
     "SIMBAD:61"
@@ -13779,7 +13609,7 @@
    "page_count": 18,
    "entry_date": "2024-11-17T00:00:00Z",
    "page_range": "1778-1795",
-   "read_count": 191,
+   "read_count": 167,
    "data": [
     "SIMBAD:139"
    ],
@@ -13879,7 +13709,7 @@
    "page_count": 11,
    "entry_date": "2025-01-19T00:00:00Z",
    "page_range": "198-208",
-   "read_count": 153,
+   "read_count": 108,
    "esources": [
     "EPRINT_HTML",
     "EPRINT_PDF",
@@ -16727,7 +16557,7 @@
    "year": "2025",
    "page_count": 22,
    "entry_date": "2025-02-16T00:00:00Z",
-   "read_count": 208,
+   "read_count": 162,
    "data": [
     "SIMBAD:1"
    ],
@@ -16840,7 +16670,7 @@
    "year": "2025",
    "page_count": 10,
    "entry_date": "2025-03-16T00:00:00Z",
-   "read_count": 241,
+   "read_count": 188,
    "data": [
     "SIMBAD:1"
    ],
@@ -17020,7 +16850,7 @@
    "year": "2025",
    "page_count": 19,
    "entry_date": "2025-03-02T00:00:00Z",
-   "read_count": 267,
+   "read_count": 234,
    "data": [
     "SIMBAD:103"
    ],
@@ -17040,7 +16870,7 @@
     "PUB_OPENACCESS",
     "REFEREED"
    ],
-   "citation_count": 48,
+   "citation_count": 49,
    "arxiv_id": "2501.07687",
    "pubdate_display": "2025-02",
    "short_ref": "Nascimbeni et al. (2025)",
@@ -19751,7 +19581,7 @@
    "volume": "59",
    "year": "2025",
    "entry_date": "2025-04-27T00:00:00Z",
-   "read_count": 744,
+   "read_count": 684,
    "esources": [
     "EPRINT_HTML",
     "EPRINT_PDF",
@@ -19765,7 +19595,7 @@
     "PUB_OPENACCESS",
     "REFEREED"
    ],
-   "citation_count": 299,
+   "citation_count": 303,
    "arxiv_id": "2406.05447",
    "pubdate_display": "2025-06",
    "short_ref": "Rauer et al. (2025)",
@@ -19847,7 +19677,7 @@
    "page_count": 13,
    "entry_date": "2025-06-15T00:00:00Z",
    "page_range": "2578-2590",
-   "read_count": 137,
+   "read_count": 122,
    "data": [
     "SIMBAD:1"
    ],
@@ -20168,7 +19998,7 @@
    "year": "2026",
    "page_count": 14,
    "entry_date": "2026-02-22T00:00:00Z",
-   "read_count": 321,
+   "read_count": 286,
    "data": [
     "SIMBAD:1"
    ],
@@ -20268,7 +20098,7 @@
    "year": "2026",
    "page_count": 12,
    "entry_date": "2026-03-22T00:00:00Z",
-   "read_count": 165,
+   "read_count": 136,
    "data": [
     "GITHUB:1"
    ],
@@ -20370,7 +20200,7 @@
    "year": "2026",
    "page_count": 5,
    "entry_date": "2026-04-14T00:00:00Z",
-   "read_count": 180,
+   "read_count": 131,
    "esources": [
     "EPRINT_HTML",
     "EPRINT_PDF",
@@ -20478,7 +20308,7 @@
    "year": "2026",
    "page_count": 9,
    "entry_date": "2026-07-12T00:00:00Z",
-   "read_count": 446,
+   "read_count": 272,
    "esources": [
     "EPRINT_HTML",
     "EPRINT_PDF",
@@ -20611,7 +20441,7 @@
    "year": "2026",
    "page_count": 22,
    "entry_date": "2026-08-09T00:00:00Z",
-   "read_count": 616,
+   "read_count": 291,
    "data": [
     "CDS:1",
     "SIMBAD:36",
@@ -20866,7 +20696,7 @@
    "volume": "61",
    "year": "2026",
    "entry_date": "2026-06-21T00:00:00Z",
-   "read_count": 392,
+   "read_count": 314,
    "esources": [
     "EPRINT_HTML",
     "EPRINT_PDF",
@@ -20992,7 +20822,7 @@
    "year": "2026",
    "page_count": 12,
    "entry_date": "2026-07-05T00:00:00Z",
-   "read_count": 640,
+   "read_count": 343,
    "esources": [
     "EPRINT_HTML",
     "EPRINT_PDF",
@@ -21086,7 +20916,9 @@
    ],
    "copyright": "© The Author(s) 2026. Published by Oxford University Press on behalf of Royal Astronomical Society.",
    "database": [
-    "astronomy"
+    "astronomy",
+    "astrophysics",
+    "planetary"
    ],
    "date": "2026-09-01T00:00:00Z",
    "doctype": "article",
@@ -21302,7 +21134,7 @@
    "year": "2026",
    "page_count": 20,
    "entry_date": "2026-09-06T00:00:00Z",
-   "read_count": 439,
+   "read_count": 455,
    "esources": [
     "EPRINT_HTML",
     "EPRINT_PDF",
@@ -21367,7 +21199,7 @@
    "page_count": 12,
    "entry_date": "2026-08-09T00:00:00Z",
    "page_range": "192-203",
-   "read_count": 3,
+   "read_count": 4,
    "esources": [
     "PUB_PDF"
    ],

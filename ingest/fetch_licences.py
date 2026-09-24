@@ -1,11 +1,12 @@
 #!/usr/bin/env python
-"""Look up the licence of every paper, and of the copy of it that we indexed.
+"""Look up the licence of every paper, and of the copy of it that we hold.
 
 Whether we download a full text at all is decided by *access*
 (fetch_fulltext.py): on arXiv, or flagged open access by ADS. That makes a
 paper free to read. Whether a public chatbot may pass its text on is a matter
-of its *licence*, which is what this script records -- in the manifest,
-<data>/manifest.json, under "licence" for each paper. It asks:
+of its *licence*, which this script records in the manifest,
+<data>/manifest.json, under "licence" for each paper, and which
+:func:`indexable` turns into the rule for what goes into the index. It asks:
 
 * arXiv, for the licence the authors chose when posting the preprint (its
   OAI-PMH record; arXiv's search API does not carry it). Most pick arXiv's
@@ -23,7 +24,7 @@ PDFs carries one in the text of its first or last two pages, and none of the
 166 markdown files mentions Creative Commons (checked 2026-09-22). marker
 drops page footers, where publishers print them.
 
-From that it works out the licence of the copy we indexed -- the preprint when
+From that it works out the licence of the copy we hold -- the preprint when
 the text came from arXiv, the published version when it came from the
 publisher or from an ADS scan -- and puts it in one of three classes:
 
@@ -35,7 +36,9 @@ no licence        arXiv's default licence, a publisher's own terms, free to
                   Quoting from these rests on copyright exceptions (quotation,
                   text and data mining), not on a licence.
 
-This records what the sources say; it is not legal advice.
+This records what the sources say; it is not legal advice. What the index does
+with it is :func:`indexable`: a copy the authors put in the open goes in
+whatever its licence, a publisher's copy only under an open one.
 
 update_corpus.py runs the lookup as part of every update, for new papers and
 for papers ADS reports something new about: a new arXiv id, DOI, link or
@@ -306,6 +309,42 @@ def copy_of(entry: dict) -> str | None:
     return PUBLISHED                # publisher-pdf, ads-scan, manual
 
 
+# Sources that are the authors' own doing: they are the ones who put the paper
+# there, and they are the only ones who could object to our quoting that copy.
+AUTHOR_SOURCES = ("arxiv-source", "arxiv-pdf", "author-pdf")
+
+
+def indexable(entry: dict) -> bool:
+    """May the full text we have of this paper be indexed? (decided 2026-09-24)
+
+    Yes for a copy the authors put in the open themselves -- an arXiv preprint,
+    a thesis in a university repository -- whoever holds the copyright: a paper
+    a chatbot cites gains readers rather than losing any, and no publisher is
+    involved. A publisher's own copy (its PDF, or ADS's scan of the printed
+    pages) only when the publisher published it under an open licence, because
+    a publisher is who would complain. The paper is indexed by its abstract
+    either way, as paywalled papers are.
+    """
+    copy = copy_of(entry)
+    if copy is None:
+        return False
+    if copy in (PREPRINT, AUTHOR_COPY):
+        return True
+    return (entry.get("licence") or {}).get("published_class") in (OPEN, CONDITIONS)
+
+
+def allowed_sources(entry: dict, sources: list[str]) -> list[str]:
+    """Of the sources the access rule allows, those worth downloading as well.
+
+    :func:`indexable` one step earlier: no point fetching and converting a
+    publisher's copy we may not index. A licence looked up later, or one that
+    changes, opens the other sources again on the next run.
+    """
+    if (entry.get("licence") or {}).get("published_class") in (OPEN, CONDITIONS):
+        return list(sources)
+    return [s for s in sources if s in AUTHOR_SOURCES]
+
+
 def _most_open(options: list[tuple[str, str]]) -> tuple[str, str]:
     return min(options, key=lambda o: CLASSES.index(class_of(o[0])))
 
@@ -345,7 +384,7 @@ def summarise(entry: dict, rec: dict) -> None:
     """Work out the licence of the copy we indexed, from the entry's ``found``."""
     lic = entry["licence"]
     found = lic.setdefault("found", {})
-    copy = copy_of(entry) if entry.get("state") == "full text" else None
+    copy = copy_of(entry)      # whatever full text we have, indexed or not
 
     pub_label, pub_basis = published_licence(found)
     lic["published"] = pub_label
@@ -428,11 +467,12 @@ def status_line(entries: dict, papers: dict) -> str | None:
     if not lics:
         return None
     n = Counter(lic["class"] for lic in lics)
-    rescued = sum(1 for lic in lics if lic["class"] == NO_LICENCE
-                  and lic.get("published_class") != NO_LICENCE)
-    return (f"  licences of the full texts: {n[OPEN]} open, {n[CONDITIONS]} with conditions "
-            f"(NC/ND), {n[NO_LICENCE]} without a licence ({rescued} of these openly licensed "
-            f"in their published version); see `make licences`")
+    left_out = sum(1 for b, e in entries.items()
+                   if b in papers and e.get("fulltext") and not indexable(e))
+    return (f"  licences of the {len(lics)} full texts we hold: {n[OPEN]} open, "
+            f"{n[CONDITIONS]} with conditions (NC/ND), {n[NO_LICENCE]} without a licence; "
+            f"{left_out} left out of the index (a publisher's copy with no open licence); "
+            f"see `make licences`")
 
 
 def _words(md_dir: str, entry: dict) -> int:
@@ -465,7 +505,7 @@ def report(entries: dict, papers: dict, md_dir: str, collection: str, log=print)
         log(f"{indent}{name:44s} {len(bibs):3d} papers  {o:5d} objects ({o / total_o:4.0%})"
             f"  {w:7d} words ({w / total_w:4.0%})")
 
-    log(f"Licences of the {len(full)} full texts, for the copy we indexed "
+    log(f"Licences of the {len(full)} full texts we hold, for the copy we hold "
         f"(objects in '{collection}'):")
     for cls in CLASSES:
         row(cls, [b for b, e in full.items() if e["licence"]["class"] == cls])
@@ -478,6 +518,8 @@ def report(entries: dict, papers: dict, md_dir: str, collection: str, log=print)
             ("published version or author's copy",
              lambda lic: lic["copy"] != PREPRINT)):
         row(name, [b for b, e in none.items() if test(e["licence"])], indent="      ")
+    row("left out of the index (a publisher's copy)",
+        [b for b, e in full.items() if not indexable(e)])
 
     log(f"\nThe {len(none)} without a licence:")
     for bib, e in sorted(none.items(), key=lambda kv: (kv[1]["licence"]["copy"], kv[0])):

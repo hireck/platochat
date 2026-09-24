@@ -200,8 +200,19 @@ def load_key(env_path: str) -> str:
     return key
 
 
+# On the PLATO-Pub list but about another PLATO: the list is an ADS query, and
+# the name is not the mission's alone. Left out of the corpus, with the reason
+# (the user's call, 2026-09-24); worth telling Mikkel, whose list it is.
+OFF_TOPIC = {
+    "2009PASP..121..174Y": "PLATO, the site-testing observatory at Dome A, Antarctica",
+}
+
+
 def fetch_papers(key: str) -> dict[str, dict]:
-    """Every paper on the live list, with its ADS record, keyed by current bibcode."""
+    """Every paper on the live list, with its ADS record, keyed by current bibcode.
+
+    Apart from those in OFF_TOPIC, which are about a different PLATO.
+    """
     print(f"Reading the PLATO-Pub list ({FEED_URL}) …")
     feed = fetch_feed()
     feed_bibcodes = [p["bibcode"] for p in feed if p.get("bibcode")]
@@ -236,6 +247,10 @@ def fetch_papers(key: str) -> dict[str, dict]:
             }
     if unresolved:
         print(f"  {len(unresolved)} unknown to ADS: {', '.join(unresolved)}")
+    for bibcode, why in OFF_TOPIC.items():
+        for key_bib in [b for b, r in papers.items() if bibcode in r.get("aliases", [b])]:
+            del papers[key_bib]
+            print(f"  left out: {key_bib} -- {why}")
     return papers
 
 
