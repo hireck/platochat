@@ -46,7 +46,7 @@ import plato_core
 app = FastAPI(title="PLATO Chatbot API", version="0.1.0")
 
 # The page is served from a different origin than the API -- during local dev
-# python -m http.server on :8090 -- so the browser needs the API's permission
+# local_site/serve.py on :8090 -- so the browser needs the API's permission
 # before it hands the page a response. See the module docstring.
 DEFAULT_CORS_ORIGINS = "http://localhost:8090,http://127.0.0.1:8090"
 

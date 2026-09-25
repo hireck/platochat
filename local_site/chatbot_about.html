@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<title>PLATO-Pub - About the PLATO Chatbot</title>
+	<meta charset="utf-8" />
+	<meta name="description" content="How the PLATO Chatbot works: what it knows, how to read its answers, and what it cannot do.">
+	<meta name="author" content="Rasmus Handberg, Aarhus University">
+	<link href="/favicon.ico" rel="shortcut icon">
+	<meta http-equiv="x-ua-compatible" content="ie=edge" />
+	<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1" />
+	<!-- Real PLATO-Pub stylesheets (mirrored locally) -->
+	<link href="/css/unsemantic-grid-responsive-tablet.css" rel="stylesheet" type="text/css" />
+	<link href="https://code.jquery.com/ui/1.12.1/themes/redmond/jquery-ui.css" rel="stylesheet" type="text/css" />
+	<link href="https://fonts.googleapis.com/css?family=Open+Sans:400,400italic,700,600,600italic,700italic,800,800italic%7CVarela+Round" rel="stylesheet" type="text/css" />
+	<link href="/css/style.css" rel="stylesheet" type="text/css" />
+	<link href="/css/chatbot.css" rel="stylesheet" type="text/css" />
+	<script src="https://code.jquery.com/jquery-3.6.0.min.js" crossorigin="anonymous"></script>
+	<script src="https://code.jquery.com/ui/1.12.1/jquery-ui.min.js" crossorigin="anonymous"></script>
+	<script type="text/javascript" src="/js/scripts.js"></script>
+</head>
+<body>
+<div id="main" class="ui-corner-bottom grid-container grid-parent">
+	<header>
+		<div id="header" class="grid-100">
+			<h1><a href="/about/platopub.php" title="Home">PLATO-Pub</a></h1>
+			<div id="subtitle">PLATO Publications Tool</div>
+		</div>
+		<nav id="tabs" class="grid-100">
+			<ul class="topnav hide-on-mobile">
+				<li><a href="/">Log in</a></li>
+				<li><a href="/newmember.php">New member</a></li>
+				<li><a href="/about/platopub.php">About</a></li>
+				<li class="topmenu-active"><a href="/about/chatbot.php">PLATO Chatbot</a></li>
+			</ul>
+			<ul class="topnav hide-on-tablet hide-on-desktop">
+				<li><a href="#" id="mobile_menu_link">&#9776;&nbsp;Menu</a></li>
+			</ul>
+		</nav>
+	</header>
+	<div id="page_central" class="grid-100 grid-parent">
+		<nav id="sidebar" class="grid-20 mobile-grid-100">
+			<ul>
+				<li><a href="/about/platopub.php">Home</a></li>
+				<li><a href="/about/platopub.php">PLATO-Pub open access</a>
+					<ul>
+						<li><a href="/about/ads_feed.php">Published PLATO Papers</a></li>
+						<li><a href="/about/chatbot.php">PLATO Chatbot</a>
+							<ul>
+								<li><a href="/about/chatbot_about.php">About the chatbot</a></li>
+							</ul>
+						</li>
+					</ul>
+				</li>
+				<li><a href="/newmember.php">New member</a></li>
+			</ul>
+		</nav>
+		<div id="contents" class="grid-80 mobile-grid-100">
+
+			<div id="general_text">
+				<div>
+					<h1>About the PLATO Chatbot</h1>
+					<p>
+						The PLATO Chatbot answers questions about ESA's PLATO mission from the papers written
+						about it: the publications collected in PLATO-Pub. It is there to save you time in
+						getting to know the instrument, its data and what has been published about them, and
+						to lead you to the papers where the details are.
+					</p>
+				</div>
+			</div>
+
+			<!-- Keep in step with ../platochat/platochat_info.md, which tells the
+			     chatbot itself the same things, so that it can answer questions
+			     about them. -->
+			<div id="chatbot_about">
+				<h2>What it knows</h2>
+				<p>
+					The chatbot works from the papers on the list of
+					<a href="/about/ads_feed.php">Published PLATO Papers</a>, which PLATO-Pub compiles
+					by automated searches of NASA ADS, and it takes in new papers as they appear on the
+					list. For each question it searches these papers for the passages that best match it,
+					and a large language model writes the answer from those passages.
+				</p>
+				<p>
+					Where a paper is openly available, because its authors put it online (on arXiv, for
+					instance) or because the publisher released it under an open licence, the chatbot
+					has as a rule read the full text. Of the other papers, many of them conference
+					proceedings behind a paywall, it has read only the abstract, as a public service may
+					not pass on their text. An abstract does not show everything a paper covers, so for
+					these papers follow the link to the paper itself.
+				</p>
+				<p>
+					You can also ask about the papers themselves: which papers there are on a topic,
+					which ones an author has written (give the surname, and say so if you mean first
+					author only), or what was published in a given year.
+				</p>
+
+				<h2>How to read its answers</h2>
+				<p>
+					Statements taken from the papers carry numbered citations: [1], [2] and so on.
+					<em>See sources</em>, under the answer, lists the passages cited, with the paper,
+					when it was published and the section the passage comes from, and links to the paper
+					on NASA ADS, at the publisher, and on arXiv where there is a copy.
+				</p>
+				<p>
+					PLATO's design and schedule have changed over the years (the number of cameras, the
+					field of view, the launch date), so an older paper can be out of date. Where papers
+					disagree, the chatbot goes with the most recent one and says so. The dates in the
+					sources show how old each piece of information is.
+				</p>
+				<p>
+					When the papers do not cover an astronomy question, the chatbot may answer from the
+					language model's general knowledge instead. It says so first, and puts that part in
+					a paragraph of its own that begins with
+					<strong>General knowledge, not from the PLATO publications</strong>. Such a paragraph
+					has no citations and has not been checked against the papers; on facts about PLATO
+					itself it may be out of date.
+				</p>
+
+				<h2>What it cannot do</h2>
+				<p>
+					Like anything built on a language model, it makes mistakes: it can misread a
+					passage, or combine two that do not belong together. Check the cited passages before
+					you rely on a figure, and cite the papers, not the chatbot.
+				</p>
+				<p>
+					It knows what the published papers say and nothing else: not the consortium's
+					internal documents, and not ESA's own pages, such as those on observing proposals.
+					Its answers are not statements of ESA or the PLATO Mission Consortium. It answers
+					questions about PLATO and astronomy only.
+				</p>
+
+				<h2>Your conversation</h2>
+				<p>
+					The chatbot reads each question together with the few messages before it, so you
+					can ask follow-up questions. For a new topic, start a
+					<em>New conversation</em>.
+				</p>
+				<p>
+					The conversation is kept in this browser tab, so that you can visit other pages and
+					come back to it. Closing the tab removes it.
+				</p>
+				<p>
+					Questions and answers are also logged on the server, so that the answers can be
+					checked and the chatbot improved. The search and the language model run on Aarhus
+					University's servers: your questions are not sent to an outside AI company. Please
+					do not enter personal information.
+				</p>
+				<p>
+					<mark>To be confirmed before the chatbot goes public: what is logged, for how long,
+					who can see it, and whom to contact about it.</mark>
+				</p>
+
+				<h2>Contact</h2>
+				<p>
+					The PLATO Chatbot is developed at Aarhus University for PLATO-Pub.
+					<mark>To be added: whom to write to about a wrong answer or a suggestion.</mark>
+				</p>
+			</div>
+
+			<p class="chat-crosslink">
+				<a href="/about/chatbot.php">Ask the PLATO Chatbot</a>
+			</p>
+
+		</div>
+	</div>
+	<footer id="footer" class="grid-100">Local development copy of PLATO-Pub — chatbot sandbox</footer>
+</div>
+</body>
+</html>

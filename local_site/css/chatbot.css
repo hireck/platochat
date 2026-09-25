@@ -114,6 +114,7 @@
 }
 #chat-input {
 	flex: 1;
+	max-width: none; /* style.css caps text inputs at 440px */
 	padding: 10px 12px;
 	border: 1px solid #c5c5d8;
 	border-radius: 20px;
@@ -133,4 +134,41 @@
 #chat-send:hover { background: #1f4178; }
 #chat-send:disabled { background: #9aa7c2; cursor: default; }
 
-#chat-status { font-size: 12px; color: #888; min-height: 16px; margin-top: 6px; }
+/* under the input: status on the left, "New conversation" on the right */
+#chat-footer {
+	display: flex;
+	justify-content: space-between;
+	align-items: baseline;
+	gap: 12px;
+	margin-top: 6px;
+}
+#chat-status { font-size: 12px; color: #888; min-height: 16px; }
+
+/* scripts.js dresses every <button> on the site as a jQuery UI button; this
+   one is meant to look like a plain link */
+#chat-new {
+	margin: 0;
+	padding: 0;
+	border: none;
+	background: none;
+	color: #2b5797;
+	font-family: inherit;
+	font-size: 12px;
+	font-weight: normal;
+	white-space: nowrap;
+	cursor: pointer;
+}
+#chat-new:hover { background: none; text-decoration: underline; }
+#chat-new:disabled { color: #9aa7c2; cursor: default; text-decoration: none; }
+/* jQuery UI's display: inline-block would otherwise override [hidden] */
+#chat-new[hidden] { display: none; }
+
+/* the line at the foot of the chat page that leads to the About page, and
+   back again; dotted like the rule under the site's h2 headings */
+.chat-crosslink {
+	margin: 28px 0 0;
+	padding-top: 8px;
+	border-top: 1px dotted gray;
+	font-size: 13px;
+	color: #555;
+}

@@ -54,18 +54,21 @@ check-venv:
 
 dev: check-venv
 	@echo "Starting PLATO API (:$(API_PORT)) and static site (:$(WEB_PORT))…"
-	@echo "Open  http://localhost:$(WEB_PORT)/chatbot.html  (Ctrl-C stops both)"
+	@echo "Open  http://localhost:$(WEB_PORT)/about/chatbot.php  (Ctrl-C stops both)"
 	@trap 'kill 0' INT TERM EXIT; \
 		( cd $(API_DIR) && $(PYTHON) -m uvicorn plato_api:app --port $(API_PORT) ) & \
-		( cd $(WEB_DIR) && $(WEB_PYTHON) -m http.server $(WEB_PORT) ) & \
+		$(WEB_PYTHON) $(WEB_DIR)/serve.py $(WEB_PORT) & \
 		wait
 
 api: check-venv
 	cd $(API_DIR) && $(PYTHON) -m uvicorn plato_api:app --reload --port $(API_PORT)
 
+# The static site alone; the chat shows mock replies unless the API runs too.
+# `make web WEB_PORT=8091` runs a second copy beside `make dev`. (The API only
+# answers pages on :8090 -- see PLATO_CORS_ORIGINS in platochat/plato_api.py.)
 web:
-	@echo "Open  http://localhost:$(WEB_PORT)/chatbot.html"
-	cd $(WEB_DIR) && $(WEB_PYTHON) -m http.server $(WEB_PORT)
+	@echo "Open  http://localhost:$(WEB_PORT)/about/chatbot.php"
+	$(WEB_PYTHON) $(WEB_DIR)/serve.py $(WEB_PORT)
 
 streamlit: check-venv
 	cd $(API_DIR) && $(PYTHON) -m streamlit run plato_chat.py
@@ -131,9 +134,9 @@ eval-full: check-venv
 
 kill:
 	-@pkill -f "uvicorn plato_api" 2>/dev/null || true
-	-@pkill -f "http.server $(WEB_PORT)" 2>/dev/null || true
+	-@pkill -f "(http\.server|serve\.py) $(WEB_PORT)" 2>/dev/null || true
 	@echo "Stopped API and static server."
 
 urls:
-	@echo "Web UI : http://localhost:$(WEB_PORT)/chatbot.html"
+	@echo "Web UI : http://localhost:$(WEB_PORT)/about/chatbot.php"
 	@echo "API    : http://localhost:$(API_PORT)/api/chat  (health: /health)"

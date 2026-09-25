@@ -60,6 +60,11 @@
 				<li><a href="/about/platopub.php">PLATO-Pub open access</a>
 					<ul>
 						<li><a href="/about/ads_feed.php">Published PLATO Papers</a></li>
+						<li><a href="/about/chatbot.php">PLATO Chatbot</a>
+							<ul>
+								<li><a href="/about/chatbot_about.php">About the chatbot</a></li>
+							</ul>
+						</li>
 					</ul>
 				</li>
 				<li><a href="/newmember.php">New member</a></li>
@@ -71,10 +76,8 @@
 				<div>
 					<h1>PLATO Chatbot</h1>
 					<p>
-						Ask questions about the PLATO mission and its publications. This assistant is a
-						retrieval-augmented (RAG) system: it searches the papers collected in PLATO-Pub and
-						uses an LLM hosted by the AU Physics &amp; Astronomy AI Lab to answer, citing the
-						passages it relied on.
+						Ask questions about the PLATO mission and its publications. The answers are drawn
+						from the papers collected in PLATO-Pub, and cite the passages they rely on.
 					</p>
 				</div>
 			</div>
@@ -93,9 +96,17 @@
 					<input id="chat-input" type="text" placeholder="Ask about PLATO…" aria-label="Your question" />
 					<button id="chat-send" type="submit">Send</button>
 				</form>
-				<div id="chat-status"></div>
+				<div id="chat-footer">
+					<div id="chat-status"></div>
+					<button id="chat-new" type="button" hidden>New conversation</button>
+				</div>
 			</div>
 			<!-- ========================================================================== -->
+
+			<p class="chat-crosslink">
+				<a href="/about/chatbot_about.php">About the PLATO Chatbot</a>:
+				what it knows, how to read its answers, and what it cannot do.
+			</p>
 
 		</div>
 	</div>

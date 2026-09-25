@@ -11,6 +11,9 @@
  *
  * If the backend is unreachable the widget falls back to MOCK replies so the
  * page can be developed/tested on its own.
+ *
+ * The conversation outlives the page: leave it and come back in the same tab,
+ * or reload it, and the conversation is still there (see STORAGE_KEY).
  */
 (function () {
 	"use strict";
@@ -19,15 +22,27 @@
 	// Override at runtime with:  window.PLATO_CHAT_API = "http://host:port/api/chat"
 	var CHAT_API = window.PLATO_CHAT_API || "http://localhost:8000/api/chat";
 	var HISTORY_WINDOW = 8; // messages sent back to the server for context
+	var GREETING = "Welcome to the PLATO chatbot — how can I help you?";
+
+	// The site's menus, the About page and the list of papers all lead away
+	// from this page, so the conversation is kept in the tab's sessionStorage.
+	// That storage belongs to the tab: other tabs do not see it, it never
+	// leaves the browser, and closing the tab clears it, as does "New
+	// conversation". Change the key if the stored format changes, so that an
+	// old conversation is dropped rather than misread.
+	var STORAGE_KEY = "platochat.conversation.v1";
 
 	var log = document.getElementById("chat-log");
 	var form = document.getElementById("chat-form");
 	var input = document.getElementById("chat-input");
 	var sendBtn = document.getElementById("chat-send");
+	var newBtn = document.getElementById("chat-new");
 	var statusEl = document.getElementById("chat-status");
 	var examples = document.getElementById("chat-examples");
 
-	var history = []; // [{role:'human'|'ai', content:str}]
+	// Every message in the log but the greeting:
+	// [{role:'human'|'ai', content:str, sources:str|null}]
+	var conversation = [];
 
 	// ---- rendering helpers ---------------------------------------------------
 
@@ -119,15 +134,54 @@
 		return row;
 	}
 
+	// ---- keeping the conversation ---------------------------------------------
+
+	function saveConversation() {
+		try {
+			if (conversation.length) {
+				sessionStorage.setItem(STORAGE_KEY, JSON.stringify(conversation));
+			} else {
+				sessionStorage.removeItem(STORAGE_KEY);
+			}
+		} catch (e) {
+			// Storage blocked or full: the chat still works, it just does not
+			// outlive the page.
+		}
+	}
+
+	function savedConversation() {
+		var saved = null;
+		try {
+			saved = JSON.parse(sessionStorage.getItem(STORAGE_KEY));
+		} catch (e) {}
+		if (!Array.isArray(saved)) return [];
+		return saved
+			.filter(function (m) {
+				return m && (m.role === "human" || m.role === "ai") && typeof m.content === "string";
+			})
+			.map(function (m) {
+				return {
+					role: m.role,
+					content: m.content,
+					sources: typeof m.sources === "string" ? m.sources : null
+				};
+			});
+	}
+
 	// ---- network -------------------------------------------------------------
 
 	function callBackend(message) {
+		// The history ends with the question being sent: it is added to the
+		// conversation before this call.
+		var history = conversation.slice(-HISTORY_WINDOW).map(function (m) {
+			return { role: m.role, content: m.content };
+		});
 		return fetch(CHAT_API, {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify({
 				message: message,
-				history: history.slice(-HISTORY_WINDOW)
+				history: history
 			})
 		}).then(function (r) {
 			if (!r.ok) throw new Error("HTTP " + r.status);
@@ -149,17 +203,32 @@
 
 	// ---- conversation flow ---------------------------------------------------
 
+	function showExamples(show) {
+		if (examples) examples.style.display = show ? "" : "none";
+	}
+
+	// Input is locked while an answer is on its way. "New conversation" is
+	// locked too, or the answer would land in the conversation that replaced
+	// the one it belongs to.
+	function setWaiting(waiting) {
+		input.disabled = waiting;
+		sendBtn.disabled = waiting;
+		if (newBtn) {
+			newBtn.disabled = waiting;
+			newBtn.hidden = !conversation.length;
+		}
+	}
+
 	function send(message) {
 		message = (message || "").trim();
 		if (!message) return;
 
-		if (examples) examples.style.display = "none";
+		showExamples(false);
 		addMessage("human", message);
-		history.push({ role: "human", content: message });
+		conversation.push({ role: "human", content: message, sources: null });
 
 		input.value = "";
-		input.disabled = true;
-		sendBtn.disabled = true;
+		setWaiting(true);
 		statusEl.textContent = "";
 		var thinking = addThinking();
 
@@ -171,15 +240,30 @@
 			.then(function (data) {
 				log.removeChild(thinking);
 				var reply = (data && data.reply) || "Sorry, something went wrong. Please try again.";
-				var sources = data && data.sources;
+				var sources = (data && data.sources) || null;
 				addMessage("ai", reply, sources);
-				history.push({ role: "ai", content: reply });
+				conversation.push({ role: "ai", content: reply, sources: sources });
+				// Saved only with its answer: a question whose answer never came,
+				// because the visitor left before it did, is not kept.
+				saveConversation();
 			})
 			.finally(function () {
-				input.disabled = false;
-				sendBtn.disabled = false;
+				setWaiting(false);
 				input.focus();
 			});
+	}
+
+	function startOver() {
+		conversation = [];
+		saveConversation();
+		// MathJax keeps track of the formulas it typeset; tell it these are gone.
+		if (window.MathJax && window.MathJax.typesetClear) window.MathJax.typesetClear([log]);
+		log.textContent = "";
+		addMessage("ai", GREETING);
+		statusEl.textContent = "";
+		showExamples(true);
+		setWaiting(false);
+		input.focus();
 	}
 
 	// ---- wiring --------------------------------------------------------------
@@ -195,6 +279,14 @@
 		});
 	});
 
-	// greeting
-	addMessage("ai", "Welcome to the PLATO chatbot — how can I help you?");
+	if (newBtn) newBtn.addEventListener("click", startOver);
+
+	// The greeting, then the conversation as it was when the visitor left.
+	addMessage("ai", GREETING);
+	conversation = savedConversation();
+	conversation.forEach(function (m) {
+		addMessage(m.role, m.content, m.sources);
+	});
+	showExamples(!conversation.length);
+	setWaiting(false);
 })();
