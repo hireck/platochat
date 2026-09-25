@@ -337,5 +337,44 @@
     "answer_must_not_match": ["(?i)canberra"],
     "expect_flag": false,
     "note": "Nothing to do with astronomy or PLATO: the bot should say it is outside its scope, not answer."
+  },
+  {
+    "id": "papers-rauer-first-author",
+    "category": "papers",
+    "question": "Which PLATO papers has Heike Rauer published as first author?",
+    "expected_papers": ["2011IAUS..276..354R", "2012EGUGA..14.7033R", "2012epsc.conf..415R", "2013EPSC....8..707R", "2014ExA....38..249R", "2016AN....337..961R", "2018haex.bookE..86R", "2025ExA....59...26R"],
+    "paper_search": {"author": "Rauer", "first_author_only": true},
+    "answer_must_match": ["\\b(8|eight)\\b", "2014", "2025"],
+    "expect_flag": false,
+    "note": "An author question: the passage search ignores authors, so only find_papers can answer it. Eight papers, 2011-2025."
+  },
+  {
+    "id": "papers-lund",
+    "category": "papers",
+    "question": "Has Mikkel Lund written any papers about PLATO?",
+    "expected_papers": ["2026A&A...708A.150L", "2017AN....338..644M", "2025ExA....59...26R", "2026A&A...712A..33P"],
+    "paper_search": {"author": "Mikkel Lund"},
+    "answer_must_match": ["(?i)bolometric correction"],
+    "expect_flag": false,
+    "note": "Given and surname: find_papers retries with the last word. Four papers, one as first author."
+  },
+  {
+    "id": "papers-2026",
+    "category": "papers",
+    "question": "How many PLATO papers have been published in 2026 so far?",
+    "expected_papers": ["2026A&A...706A.207P", "2026A&A...707A.200M", "2026A&A...708A.150L", "2026A&A...711A..75B", "2026A&A...712A..33P", "2026AJ....171...14B", "2026ExA....61...23U", "2026MNRAS.550g1174M", "2026MNRAS.551g1543C", "2026MNRAS.551g1557H", "2026Obs...146..192S"],
+    "paper_search": {"year_from": 2026, "year_to": 2026, "limit": 25},
+    "answer_must_match": ["\\b(11|eleven)\\b"],
+    "note": "Eleven on the list of 2026-09-24; the number grows as papers are added, so update this with the list."
+  },
+  {
+    "id": "papers-white-dwarfs",
+    "category": "papers",
+    "question": "Which PLATO papers are about white dwarfs?",
+    "expected_papers": ["2026ExA....61...23U"],
+    "paper_search": {"query": "white dwarfs"},
+    "answer_must_match": ["(?i)Uzundag"],
+    "expect_flag": false,
+    "note": "A topic question about papers rather than facts. Jannsen et al. (2025) simulate white-dwarf pulsators too and may be named; Eschen et al. (2024) mention them in passing."
   }
 ]

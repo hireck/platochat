@@ -28,6 +28,9 @@ to Weaviate at all.
     python reindex_weaviate.py --collection PLATO_TEST      # new collection
     python reindex_weaviate.py --yes                        # rebuild PLATO
 
+The whole-paper index, <collection>_PAPERS, is brought up to date at the end
+(see paper_index.py).
+
 Keep the model here in step with ``PLATO_EMBED_MODEL`` in plato_core.py: a
 query embedded by one model cannot be compared against a corpus embedded by
 another.
@@ -662,6 +665,12 @@ def main() -> int:
         upsert(collection, chunks, vectors)
         print(f"\nDone. '{args.collection}' holds {len(collection)} objects "
               f"at {dim} dims.")
+
+        # The whole-paper index beside it (not dropped: its records are
+        # rewritten only where the rebuild changed a paper's coverage).
+        from paper_index import sync_papers
+        papers, _ = load_papers(args.metadata)
+        sync_papers(client, args.collection, papers, model=args.model, embedder=embedder)
         print(f"Point the chatbot at it with PLATO_EMBED_MODEL={args.model} "
               f"(already the default in plato_core.py).")
     finally:

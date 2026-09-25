@@ -14,6 +14,10 @@ failures. A paper missing from the pool is a search problem (chunking,
 embedding, BM25 fields); a paper in the pool but not in the final passages is a
 reranker problem (threshold, top-k).
 
+A question with ``paper_search`` (find_papers arguments) is about the papers
+themselves -- who wrote what, what came out when -- and is scored in retrieval
+mode through the paper index instead; see run_paper_search().
+
 **Full mode** runs the real pipeline and checks, per question: did the router
 make the expected decision, did the model cite an expected paper, is the
 general-knowledge label present exactly where it should be, and does the
@@ -57,7 +61,8 @@ def papers_of(docs: list, aliases: dict[str, str]) -> list[str]:
     """Current bibcode of each doc's paper, in order, without repeats."""
     out: list[str] = []
     for d in docs:
-        bib = d.properties.get("parent_doc") or ""
+        # A passage names its paper in parent_doc, a find_papers record in bibcode.
+        bib = d.properties.get("parent_doc") or d.properties.get("bibcode") or ""
         bib = aliases.get(bib, bib)
         if bib not in out:
             out.append(bib)
@@ -72,7 +77,32 @@ def first_rank(found: list[str], expected: list[str]) -> int | None:
     return None
 
 
+def run_paper_search(core, item: dict, aliases: dict) -> dict:
+    """Retrieval mode for a question about papers rather than their content.
+
+    Scored through the paper index with the find_papers arguments the question
+    carries (``paper_search``) -- the passage search ignores authors and dates,
+    so it has nothing to find there. Whether the model picks those arguments is
+    for full mode to show. Here "in the pool" means *every* expected paper came
+    back: a list of papers missing one is wrong, not merely lower-ranked.
+    """
+    t0 = time.time()
+    found = core.find_papers(**item["paper_search"])
+    expected = item["expected_papers"]
+    top = papers_of(found.papers, aliases)
+    return {
+        "pool_size": found.total,
+        "in_pool": all(bib in top for bib in expected),
+        "found_via": ["papers"],
+        "final_rank": first_rank(top, expected),
+        "final_papers": top,
+        "seconds": round(time.time() - t0, 2),
+    }
+
+
 def run_retrieval(core, item: dict, aliases: dict) -> dict:
+    if "paper_search" in item:
+        return run_paper_search(core, item, aliases)
     t0 = time.time()
     candidates, found_by = core.fetch_candidates(item["question"])
     final = core.rerank(item["question"], candidates, found_by)
@@ -150,6 +180,10 @@ def summarise_retrieval(rows: list[dict]) -> None:
     only_vec = [r["id"] for r in rows if r["found_via"] == ["vector"]]
     print(f"  found by BM25 only: {len(only_bm25)} {only_bm25}")
     print(f"  found by vector search only: {len(only_vec)} {only_vec}")
+    papers = [r for r in rows if r["found_via"] == ["papers"]]
+    if papers:
+        print(f"  of these, scored through find_papers: {len(papers)}; every expected paper "
+              f"listed in {rate([r['in_pool'] for r in papers])}")
     for r in rows:
         if r["final_rank"] is None:
             where = "lost in reranking" if r["in_pool"] else "never retrieved"

@@ -15,7 +15,8 @@ One command for the whole ingest, safe to run every night (see cron_update.sh):
              marker for PDFs)
 4. index     bring the Weaviate collection in line with the list: write the
              objects of papers that are new or changed, delete those of papers
-             that left it (reindex_weaviate.py)
+             that left it (reindex_weaviate.py); then the same for the
+             whole-paper index beside it, <collection>_PAPERS (paper_index.py)
 
 Only what changed is done, and the two halves keep track differently:
 
@@ -64,6 +65,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import fetch_fulltext  # noqa: E402
 import fetch_licences  # noqa: E402
+import paper_index  # noqa: E402
 from fetch_fulltext import (  # noqa: E402
     FetchError, Fetched, access_of, fulltext_allowed, fulltext_sources, sha256_file,
 )
@@ -680,8 +682,12 @@ def index_stage(manifest: dict, papers: dict, paths: Paths, args,
                 log(f"    … and {len(plan) - 40} more")
             for parent in orphans:
                 log(f"    remove {parent} ({len(orphans[parent])} objects)")
+            if client.collections.exists(args.collection):
+                # As the chunks stand now, before the changes above.
+                paper_index.sync_papers(client, args.collection, papers, dry_run=True, log=log)
             return stats
 
+        embedder = None
         if plan:
             count_tokens = load_tokenizer_counter(settings.model)
             embedder = load_embedder(settings.model, args.device)
@@ -716,6 +722,16 @@ def index_stage(manifest: dict, papers: dict, paths: Paths, args,
                     entry["indexed"].pop(args.collection, None)
         if not args.dry_run:
             log(f"  '{args.collection}' now holds {len(collection)} objects")
+
+        # The whole-paper index follows the chunks: it takes each paper's
+        # coverage from them, so it runs after they are written. Cheap -- only
+        # records whose fingerprint changed are embedded -- so it runs on
+        # --only too.
+        done = paper_index.sync_papers(
+            client, args.collection, papers, model=settings.model, device=args.device,
+            embedder=embedder, max_removals=None if args.allow_removals else REMOVAL_GUARD,
+            log=log)
+        stats["paper records written"] += done["written"]
     finally:
         client.close()
     return stats

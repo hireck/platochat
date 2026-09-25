@@ -23,6 +23,7 @@ typeset it.
 import json
 import os
 import re
+import unicodedata
 from dataclasses import dataclass, field
 
 from dotenv import load_dotenv
@@ -107,6 +108,10 @@ EMBED_DEVICE         = os.environ.get("PLATO_EMBED_DEVICE") or _best_device()
 # alongside the live one (reindex_weaviate.py --collection ...) can be A/B'd
 # without touching PLATO. The vectors in it must come from EMBED_MODEL.
 WEAVIATE_COLLECTION  = os.environ.get("PLATO_COLLECTION", "PLATO")
+# The whole-paper index built beside it by ingest/paper_index.py: one object
+# per paper (title, abstract, authors, date), for the find_papers tool.
+PAPER_COLLECTION     = os.environ.get("PLATO_PAPER_COLLECTION",
+                                      WEAVIATE_COLLECTION + "_PAPERS")
 
 HISTORY_WINDOW       = 4       # previous messages folded into the prompt
 # Candidates fetched per retriever. Vector and BM25 run as separate queries
@@ -134,7 +139,26 @@ RERANK_FALLBACK_K    = 2       # fallback below the relevance threshold
 # fallback path below. Override only alongside PLATO_RERANK_MODEL.
 RERANK_THRESHOLD     = float(os.environ.get("PLATO_RERANK_THRESHOLD", "0.5"))
 # Extra searches the answering model may request after the router's first one.
+# Shared by both tools: a turn may go on find_papers, search_publications or
+# (several at once) both.
 FOLLOWUP_SEARCHES    = int(os.environ.get("PLATO_FOLLOWUP_SEARCHES", "2"))
+
+# find_papers. Title, abstract and ADS keywords are what a topic query is
+# matched against, the title boosted as for the chunks. The reranker reads
+# title and abstract together; RERANK_THRESHOLD separates on-topic papers
+# there as it does for chunks (checked on six topics, 2026-09-24: "white
+# dwarfs" 0.97/0.70/0.45 then below 0.06). A query naming PLATO itself lifts
+# nearly every paper over it, which is what the cap is for.
+PAPER_BM25_PROPERTIES = ["title^2", "abstract", "keywords"]
+PAPER_RETRIEVAL_LIMIT = 20     # candidates per retriever, as RETRIEVAL_LIMIT
+PAPER_DEFAULT_LIMIT   = 10     # papers returned unless the model asks for more
+PAPER_MAX_LIMIT       = 25
+PAPER_FALLBACK_K      = 3      # shown, as weak matches, when none passes
+# A list of more papers than this gets their abstracts shortened, so that a
+# long bibliography does not flood the context.
+PAPER_FULL_ABSTRACTS  = 10
+PAPER_SHORT_ABSTRACT  = 400    # characters
+PAPER_SHOWN_AUTHORS   = 6
 
 
 # ---------------------------------------------------------------------------
@@ -227,9 +251,27 @@ the tool first with a better query. That is exactly what it is for.
 
 The query must stand on its own: the index cannot see this conversation, so
 resolve every pronoun and back-reference first ("and its field of view?"
-becomes "PLATO field of view"). You may search at most {n} more time(s); after
-that, answer with what you have and state plainly what the publications did
-not cover.
+becomes "PLATO field of view"). You may call your tools in at most {n} more
+round(s) -- calls made together count as one; after that, answer with what
+you have and state plainly what the publications did not cover.
+"""
+
+# Appended after SEARCH_TOOL_INSTRUCTIONS when the paper index exists. The
+# router only ever runs a passage search, so a question about authors or dates
+# arrives with passages that cannot answer it; the prompt has to say that the
+# other tool is the way out, or the model reports the passages as insufficient.
+FIND_PAPERS_INSTRUCTIONS = """
+You also have a `find_papers` tool. It searches the list of PLATO publications
+by title and abstract, and filters by author surname and publication year. Use
+it for questions about the papers rather than their content: which papers
+there are on a topic, who wrote what, what was published when or most
+recently, how many. The passages above cannot answer such questions --- the
+search behind them ignores authors and dates --- so call `find_papers` for them
+even when passages were given. It returns one record per paper (title,
+authors, date, abstract), numbered like passages; cite the records you use in
+the same way. When you list papers, give each with its authors, year and
+title. Report the number of matching papers it gives you, and say so when you
+show only some of them.
 """
 
 ROUTER_PROMPT = """\
@@ -316,6 +358,13 @@ print("Connecting to Weaviate …")
 weaviate_client = weaviate.connect_to_local()
 assert weaviate_client.is_ready(), "Weaviate is not ready!"
 chunks_collection = weaviate_client.collections.get(WEAVIATE_COLLECTION)
+# Without the paper index the chatbot still works; it just does not offer
+# find_papers. Build it with ingest/paper_index.py (or `make update`).
+if weaviate_client.collections.exists(PAPER_COLLECTION):
+    papers_collection = weaviate_client.collections.get(PAPER_COLLECTION)
+else:
+    papers_collection = None
+    print(f"No paper index '{PAPER_COLLECTION}': find_papers is not offered.")
 
 
 # ---------------------------------------------------------------------------
@@ -346,7 +395,7 @@ def _doc_summary(doc, extra: dict | None = None) -> dict:
     """Small JSON-friendly view of a doc for Langfuse traces."""
     props = doc.properties
     out = {
-        "chunk_id":        props.get("chunk_id"),
+        "chunk_id":        props.get("chunk_id") or "paper:" + (props.get("bibcode") or ""),
         "title":           props.get("title"),
         "pubdate":         props.get("pubdate"),
         "section_headers": props.get("section_headers"),
@@ -500,6 +549,165 @@ def format_docs(docs: list, first_number: int = 1) -> str:
 
 
 # ---------------------------------------------------------------------------
+# The paper index (find_papers)
+# ---------------------------------------------------------------------------
+
+# Must match fold_name() in ingest/paper_index.py, which made the keys.
+_NAME_FOLD = str.maketrans({"ø": "o", "æ": "ae", "œ": "oe", "ß": "ss", "ł": "l", "đ": "d",
+                            "ð": "d", "þ": "th", "ı": "i"})
+
+
+def author_key(name: str) -> str:
+    """A surname as the paper index stores it: 'Børsen-Koch' -> 'borsen koch'.
+
+    Given "Surname, Initials" (the ADS form), only the surname is kept.
+    """
+    name = unicodedata.normalize("NFKD", name.split(",")[0].casefold().translate(_NAME_FOLD))
+    name = "".join(c for c in name if not unicodedata.combining(c))
+    return " ".join("".join(c if c.isalnum() else " " for c in name).split())
+
+
+def is_paper(doc) -> bool:
+    """A paper record from find_papers, as opposed to a passage (a chunk)."""
+    return "chunk_id" not in doc.properties
+
+
+def doc_key(doc) -> str:
+    """What makes a passage or paper record the same one twice in a request."""
+    props = doc.properties
+    return "paper:" + props["bibcode"] if is_paper(doc) else props["chunk_id"]
+
+
+def _year(value) -> int | None:
+    try:
+        return int(str(value).strip()[:4]) if value not in (None, "") else None
+    except ValueError:
+        return None
+
+
+def _paper_filters(key: str, first_author_only: bool, year_from, year_to):
+    parts = []
+    if key:
+        prop = "first_author_keys" if first_author_only else "author_keys"
+        parts.append(wq.Filter.by_property(prop).contains_any([key]))
+    if year_from is not None:
+        parts.append(wq.Filter.by_property("year").greater_or_equal(year_from))
+    if year_to is not None:
+        parts.append(wq.Filter.by_property("year").less_or_equal(year_to))
+    if not parts:
+        return None
+    return parts[0] if len(parts) == 1 else wq.Filter.all_of(parts)
+
+
+@dataclass
+class PaperSearch:
+    """What one find_papers call found, and how."""
+
+    papers: list
+    total: int                 # papers matching the filters, before any ranking
+    ranked: bool               # by relevance to a query, else newest first
+    weak: bool = False         # nothing passed the reranker; these are the closest
+    author_key: str = ""       # the surname actually filtered on
+
+
+def find_papers(query: str = "", author: str = "", first_author_only: bool = False,
+                year_from=None, year_to=None, limit=None) -> PaperSearch:
+    """Search the paper index: by topic, author and year, in any combination.
+
+    With a query, papers are found by vector and BM25 search over title and
+    abstract and reranked like chunks; without one, every paper matching the
+    filters is listed, newest first. ``total`` counts the papers that match the
+    filters, so the model can say "37 papers, here are ten".
+
+    An author given with first names ("Mikkel Lund") matches no surname key,
+    so if the whole string finds nothing, its last word is tried.
+    """
+    query = (query or "").strip()
+    year_from, year_to = _year(year_from), _year(year_to)
+    try:
+        limit = int(limit) if limit else PAPER_DEFAULT_LIMIT
+    except (TypeError, ValueError):
+        limit = PAPER_DEFAULT_LIMIT
+    limit = max(1, min(limit, PAPER_MAX_LIMIT))
+
+    key = author_key(author or "")
+    filters = _paper_filters(key, first_author_only, year_from, year_to)
+    total = papers_collection.aggregate.over_all(filters=filters, total_count=True).total_count
+    if key and not total and " " in key:
+        key = key.split()[-1]
+        filters = _paper_filters(key, first_author_only, year_from, year_to)
+        total = papers_collection.aggregate.over_all(filters=filters, total_count=True).total_count
+    if not total:
+        return PaperSearch([], 0, bool(query), author_key=key)
+
+    if not query:
+        response = papers_collection.query.fetch_objects(
+            filters=filters, limit=limit,
+            sort=wq.Sort.by_property("pub_date", ascending=False),
+        )
+        return PaperSearch(response.objects, total, False, author_key=key)
+
+    vector_hits = papers_collection.query.near_vector(
+        near_vector=vectorize(query), filters=filters, limit=PAPER_RETRIEVAL_LIMIT,
+    ).objects
+    bm25_hits = papers_collection.query.bm25(
+        query=query, query_properties=PAPER_BM25_PROPERTIES, filters=filters,
+        limit=PAPER_RETRIEVAL_LIMIT,
+    ).objects
+    candidates, _ = _union(vector_hits, bm25_hits)
+    if not candidates:
+        return PaperSearch([], total, True, author_key=key)
+    scores = cross_encoder.predict([
+        [query, d.properties["title"] + "\n\n" + (d.properties.get("abstract") or "")]
+        for d in candidates
+    ])
+    scored = sorted(zip(scores, candidates), key=lambda t: t[0], reverse=True)
+    passing = [d for s, d in scored if s > RERANK_THRESHOLD][:limit]
+    if passing:
+        return PaperSearch(passing, total, True, author_key=key)
+    return PaperSearch([d for _, d in scored[:PAPER_FALLBACK_K]], total, True, weak=True,
+                       author_key=key)
+
+
+def _authors_line(authors: list[str], key: str) -> str:
+    """The first few authors -- and, if the search was for someone further down, them too."""
+    shown = authors[:PAPER_SHOWN_AUTHORS]
+    line = "; ".join(shown)
+    rest = len(authors) - len(shown)
+    if rest > 0:
+        line += f"; and {rest} more"
+        # The index's rule: the key is a run of whole words of the surname.
+        wanted = [a for a in authors[PAPER_SHOWN_AUTHORS:]
+                  if key and f" {key} " in f" {author_key(a)} "]
+        if wanted:
+            line += " (among them " + "; ".join(wanted[:3]) + ")"
+    return line
+
+
+def format_papers(papers: list, first_number: int, author_key_: str = "") -> str:
+    """Paper records as the model sees them, numbered on from the passages."""
+    short = len(papers) > PAPER_FULL_ABSTRACTS
+    parts = []
+    for number, d in enumerate(papers, start=first_number):
+        props = d.properties
+        meta = {
+            "passage":   number,
+            "paper":     props.get("short_ref"),
+            "published": props.get("pubdate"),
+            "title":     props.get("title"),
+            "authors":   _authors_line(props.get("authors") or [], author_key_),
+            "journal":   props.get("journal"),
+            # Whether search_publications can find more than this abstract.
+            "indexed":   props.get("coverage"),
+        }
+        abstract = props.get("abstract") or "(no abstract)"
+        if short and len(abstract) > PAPER_SHORT_ABSTRACT:
+            abstract = abstract[:PAPER_SHORT_ABSTRACT].rsplit(" ", 1)[0] + " …"
+        parts.append(json.dumps(meta, indent=4, ensure_ascii=False) + "\nAbstract: " + abstract)
+    return "\n\n".join(parts)
+
+
+# ---------------------------------------------------------------------------
 # Citation / source helpers
 # ---------------------------------------------------------------------------
 
@@ -607,7 +815,9 @@ def build_sources_text(docs: list, source_numbers: list[str]) -> str:
             continue
         props   = doc.properties
         title   = props.get("title") or "Unknown title"
-        headers = _without_title(props.get("section_headers") or [], title)
+        # A paper record from find_papers is its title and abstract.
+        headers = (["Abstract"] if is_paper(doc)
+                   else _without_title(props.get("section_headers") or [], title))
         section = (
             "Section: " + ", ".join(headers)
             if headers
@@ -655,6 +865,18 @@ def tool_get_platochat_info() -> str:
     return PLATOCHAT_INFO
 
 
+def tool_find_papers(**kwargs) -> PaperSearch:
+    with langfuse_client.start_as_current_observation(name="find-papers") as obs:
+        obs.update(input=kwargs)
+        found = find_papers(**kwargs)
+        obs.update(output={
+            "total": found.total, "ranked": found.ranked, "weak": found.weak,
+            "author_key": found.author_key,
+            "papers": [_doc_summary(d) for d in found.papers],
+        })
+    return found
+
+
 def tool_search_publications(query: str) -> tuple[str, list]:
     """Run the RAG retrieval. Returns (formatted_context, raw_docs)."""
     with langfuse_client.start_as_current_observation(name="retrieve-and-rerank") as obs:
@@ -699,27 +921,94 @@ SEARCH_TOOL_SCHEMA = [
     },
 ]
 
+# The paper index. Offered next to search_publications whenever the paper
+# collection exists; both draw on the same follow-up budget.
+FIND_PAPERS_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "find_papers",
+        "description": (
+            "Find papers on the PLATO-Pub publication list by topic, author and "
+            "publication year, in any combination. Searches titles and abstracts, "
+            "not the full texts, and returns one record per paper: title, authors, "
+            "date, journal, abstract. Use it for questions about the papers "
+            "themselves -- which papers exist on a topic, who wrote what, what was "
+            "published when, how many -- which search_publications cannot answer, "
+            "as it does not look at authors or dates. Without a query, lists the "
+            "papers matching the filters, newest first."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": (
+                        "Topic to search titles and abstracts for, in English. "
+                        "Leave empty to list papers by author and/or year alone."
+                    ),
+                },
+                "author": {
+                    "type": "string",
+                    "description": (
+                        "Surname of one author, e.g. 'Rauer' or 'Christensen-Dalsgaard'. "
+                        "Surname only, no first names or initials."
+                    ),
+                },
+                "first_author_only": {
+                    "type": "boolean",
+                    "description": "Only papers with that author as first author.",
+                },
+                "year_from": {"type": "integer", "description": "Earliest publication year."},
+                "year_to": {"type": "integer", "description": "Latest publication year."},
+                "limit": {
+                    "type": "integer",
+                    "description": (
+                        f"How many papers to return (default {PAPER_DEFAULT_LIMIT}, "
+                        f"at most {PAPER_MAX_LIMIT})."
+                    ),
+                },
+            },
+        },
+    },
+}
 
-def run_search_tool_call(call: dict, seen_chunks: set,
-                         first_number: int) -> tuple[str, list]:
-    """Execute one model-requested tool call.
 
-    Returns ``(tool_message_content, new_docs)``. Passages already handed to the
-    model are filtered out by ``chunk_id``: re-sending a chunk would waste
-    context and let the same source be cited under two numbers. The new
-    passages are numbered from ``first_number``, continuing the request's count.
+def available_tools() -> list:
+    return SEARCH_TOOL_SCHEMA + ([FIND_PAPERS_TOOL] if papers_collection is not None else [])
+
+
+def run_search_tool_call(call: dict, given: list) -> tuple[str, list]:
+    """Execute one model-requested tool call: search_publications or find_papers.
+
+    ``given`` is every passage and paper record handed to the model so far in
+    this request, in order; a record's passage number is its position there.
+    Returns ``(tool_message_content, new_docs)``, the new ones numbered on from
+    ``len(given) + 1``. Nothing is handed over twice: re-sending would waste
+    context and let the same source be cited under two numbers.
 
     Never raises: a bad tool call is reported back to the model as text so it can
     recover on the next turn rather than taking the request down.
     """
     name = call["function"]["name"]
-    if name != "search_publications":
+    if name not in {t["function"]["name"] for t in available_tools()}:
         return f"Error: no tool named {name!r} is available.", []
 
     try:
         args = json.loads(call["function"]["arguments"] or "{}")
     except json.JSONDecodeError:
         return "Error: the tool arguments were not valid JSON. Try again.", []
+    if not isinstance(args, dict):
+        return "Error: the tool arguments must be a JSON object. Try again.", []
+
+    number_of = {doc_key(d): n for n, d in enumerate(given, start=1)}
+    if name == "find_papers":
+        try:
+            return _run_find_papers(args, number_of, len(given) + 1)
+        except Exception as exc:
+            print(f"[find papers] failed: {type(exc).__name__}: {exc}")
+            return ("Error: find_papers failed with these arguments. Check them "
+                    "(query and author are strings, years are integers) and try "
+                    "again, or answer without it."), []
 
     query = (args.get("query") or "").strip()
     if not query:
@@ -727,8 +1016,7 @@ def run_search_tool_call(call: dict, seen_chunks: set,
 
     print(f"[follow-up search] {query!r}")
     _, docs = tool_search_publications(query)
-    fresh = [d for d in docs if d.properties["chunk_id"] not in seen_chunks]
-    seen_chunks.update(d.properties["chunk_id"] for d in fresh)
+    fresh = [d for d in docs if doc_key(d) not in number_of]
 
     if not fresh:
         return (
@@ -740,7 +1028,76 @@ def run_search_tool_call(call: dict, seen_chunks: set,
         "The following passages were retrieved from the publications. Cite each "
         "one you use with <cite>N</cite> tags, where N is the passage number shown "
         "in the metadata (e.g. <cite>9</cite>):\n\n"
-        + format_docs(fresh, first_number)
+        + format_docs(fresh, len(given) + 1)
+    ), fresh
+
+
+def _run_find_papers(args: dict, number_of: dict, first_number: int) -> tuple[str, list]:
+    kwargs = {k: args.get(k) for k in ("query", "author", "first_author_only",
+                                       "year_from", "year_to", "limit")
+              if args.get(k) not in (None, "")}
+    kwargs["first_author_only"] = bool(kwargs.get("first_author_only"))
+    print(f"[find papers] {kwargs}")
+    found = tool_find_papers(**kwargs)
+
+    # Say back what was searched for, as the index understood it.
+    what = []
+    if kwargs.get("query"):
+        what.append(f"on {kwargs['query']!r}")
+    if found.author_key:
+        # As asked, unless only its last word matched ("Mikkel Lund" -> Lund).
+        asked = kwargs.get("author", "")
+        name = asked if author_key(asked) == found.author_key else found.author_key.title()
+        what.append(("with first author " if kwargs["first_author_only"] else "by ") + name)
+    years = [str(y) for y in (_year(kwargs.get("year_from")), _year(kwargs.get("year_to")))]
+    if years != ["None", "None"]:
+        what.append("published " + "-".join(y if y != "None" else "" for y in years))
+    what = " ".join(what) or "(no filters)"
+    filtered = bool(found.author_key or years != ["None", "None"])
+    try:
+        limit = max(1, min(int(kwargs.get("limit") or PAPER_DEFAULT_LIMIT), PAPER_MAX_LIMIT))
+    except (TypeError, ValueError):
+        limit = PAPER_DEFAULT_LIMIT
+
+    if not found.papers:
+        if found.total == 0:
+            return (f"No paper on the PLATO-Pub list matches: {what}. The list holds only "
+                    "papers about the PLATO mission, so an author or topic may simply not "
+                    "be on it. Say so; do not guess other papers."), []
+        return (f"{found.total} papers match the filters ({what}), but none of them is "
+                "about the query. Say so, or search again without the query."), []
+
+    old = [number_of[doc_key(d)] for d in found.papers if doc_key(d) in number_of]
+    fresh = [d for d in found.papers if doc_key(d) not in number_of]
+
+    if found.weak:
+        head = (f"No paper is clearly about this ({what}); these {len(found.papers)} are "
+                "the closest, and may not be relevant.")
+    elif found.ranked:
+        head = f"{len(found.papers)} paper(s) {what}, most relevant first"
+        if filtered:
+            head += f" (of the {found.total} matching the author/year filters)"
+        head += ":"
+        # Capped rather than exhausted: more may be relevant.
+        if len(found.papers) == limit:
+            head += " There may be more; ask for a higher limit to see them."
+    else:
+        head = (f"{found.total} papers on the PLATO-Pub list match ({what}); "
+                + ("all of them" if len(found.papers) == found.total
+                   else f"the {len(found.papers)} most recent")
+                + ", newest first:")
+        if len(found.papers) < found.total:
+            head += " Ask for a higher limit, or narrow the filters, to see the others."
+    if old:
+        head += (" Already given to you above, and part of this result: passage(s) "
+                 + ", ".join(map(str, old)) + ".")
+    if not fresh:
+        return head, []
+    return (
+        head + "\n\nEach record is one paper: its title, authors, date and abstract. "
+        "Cite a record you use with <cite>N</cite> like a passage. An abstract does not "
+        "say everything a paper contains; for details, use search_publications.\n\n"
+        + format_papers(fresh, first_number, found.author_key)
     ), fresh
 
 
@@ -876,8 +1233,9 @@ def answer_question(
     """Route → execute tools → generate answer (searching again if needed).
 
     The router picks the first search; the answering model may then request up
-    to ``FOLLOWUP_SEARCHES`` more via the ``search_publications`` tool when the
-    passages it was handed do not cover the question.
+    to ``FOLLOWUP_SEARCHES`` more rounds of tool calls when the passages it was
+    handed do not cover the question: ``search_publications`` for more passages,
+    ``find_papers`` for paper records (by topic, author and year).
 
     Parameters
     ----------
@@ -952,7 +1310,8 @@ def answer_question_detailed(
             {
                 "role": "system",
                 "content": system_prompt
-                + SEARCH_TOOL_INSTRUCTIONS.format(n=FOLLOWUP_SEARCHES),
+                + SEARCH_TOOL_INSTRUCTIONS.format(n=FOLLOWUP_SEARCHES)
+                + (FIND_PAPERS_INSTRUCTIONS if papers_collection is not None else ""),
             },
             {"role": "user", "content": "\n\n---\n\n".join(blocks)},
         ]
@@ -960,14 +1319,13 @@ def answer_question_detailed(
         # The model may ask for more context instead of answering. Loop until it
         # answers or spends its budget; once the budget is gone we stop offering
         # the tool, which forces a plain answer and terminates the loop.
-        seen_chunks = {d.properties["chunk_id"] for d in retrieved_docs}
         searches_left = FOLLOWUP_SEARCHES
         raw_answer = ""
 
         while True:
             raw_answer, tool_calls = complete(
                 answer_messages,
-                tools=SEARCH_TOOL_SCHEMA if searches_left > 0 else None,
+                tools=available_tools() if searches_left > 0 else None,
             )
             if not tool_calls:
                 break
@@ -986,9 +1344,7 @@ def answer_question_detailed(
                     # retrieved_docs is the request's running passage list:
                     # a passage's number is its position in it, so follow-up
                     # passages continue where the last search stopped.
-                    tool_content, new_docs = run_search_tool_call(
-                        call, seen_chunks, first_number=len(retrieved_docs) + 1
-                    )
+                    tool_content, new_docs = run_search_tool_call(call, retrieved_docs)
                     retrieved_docs.extend(new_docs)
                     answer_messages.append({
                         "role": "tool",

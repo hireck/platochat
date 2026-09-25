@@ -14,6 +14,7 @@
 #   make licences look up under what licence each paper is published, and report
 #   make reindex  rebuild the Weaviate PLATO collection from the markdown corpus
 #                 (DESTRUCTIVE — see the reindex target below)
+#   make papers   bring the whole-paper index (PLATO_PAPERS) up to date on its own
 #   make eval     score retrieval against eval/questions.json (no LLM, ~1 min)
 #   make eval-full  score whole answers too (needs the AU network, ~10 min)
 #
@@ -41,7 +42,7 @@ WEB_PYTHON ?= python3
 # The eval questions and results.
 EVAL_DIR  := eval
 
-.PHONY: dev api web streamlit venv check-venv kill urls reindex metadata update status licences eval eval-full
+.PHONY: dev api web streamlit venv check-venv kill urls reindex papers metadata update status licences eval eval-full
 
 venv:
 	$(BASE_PYTHON) -m venv $(VENV)
@@ -86,6 +87,16 @@ streamlit: check-venv
 ARGS ?= --dry-run
 reindex: check-venv
 	$(PYTHON) $(INGEST_DIR)/reindex_weaviate.py $(ARGS)
+
+# The whole-paper index behind the chatbot's find_papers tool: one object per
+# paper (title, abstract, authors, date), in <collection>_PAPERS. `make update`
+# and `make reindex` keep it up to date already; this is for building it on its
+# own. Takes half a minute; only papers whose record changed are rewritten.
+#   make papers PAPER_ARGS="--dry-run"
+#   PLATO_COLLECTION=PLATO_NEXT make papers       # PLATO_NEXT_PAPERS
+PAPER_ARGS ?=
+papers: check-venv
+	$(PYTHON) $(INGEST_DIR)/paper_index.py $(PAPER_ARGS)
 
 # Which papers exist and what ADS knows about them (dates, DOIs, arXiv ids).
 # Run before a reindex: the index only holds papers that are on the list.
