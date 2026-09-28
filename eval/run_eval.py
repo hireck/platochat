@@ -127,24 +127,40 @@ def run_retrieval(core, item: dict, aliases: dict) -> dict:
     }
 
 
+# The patterns are written with ASCII hyphens and spaces, and a model may use
+# look-alikes: GLM-5.3-Flash joins "noise-to-signal" with non-breaking hyphens
+# (U+2011), which failed a correct answer. Soft hyphens (U+00AD), which it also
+# puts inside words, are invisible on the page and go.
+PLAIN_TEXT = str.maketrans({"\u2010": "-", "\u2011": "-", "\u00a0": " ", "\u202f": " ",
+                            "\u00ad": ""})
+
+
 def run_full(core, item: dict, aliases: dict) -> dict:
     t0 = time.time()
-    ans = core.answer_question_detailed(item["question"], item.get("history") or [])
+    try:
+        ans, error = core.answer_question_detailed(item["question"], item.get("history") or []), None
+    except Exception as exc:
+        # One failed request (a timeout, a 5xx from the endpoint) must not cost
+        # the rest of the run; it counts as failing every check that applies.
+        print(f"  ERROR {type(exc).__name__}: {exc}")
+        ans, error = core.Answer(), f"{type(exc).__name__}: {exc}"
     seconds = round(time.time() - t0, 1)
     reply = ans.reply or ""
+    decision = ans.decision or core.RouterDecision(platochat_info=False)
     expected = item["expected_papers"]
 
     checks: dict[str, bool] = {}
     if "expect_search" in item:
-        checks["router_search"] = bool(ans.decision.search_query) == item["expect_search"]
+        checks["router_search"] = bool(decision.search_query) == item["expect_search"]
     if "expect_info" in item:
-        checks["router_info"] = ans.decision.platochat_info == item["expect_info"]
+        checks["router_info"] = decision.platochat_info == item["expect_info"]
     if expected:
         checks["retrieved_expected"] = first_rank(papers_of(ans.docs, aliases), expected) is not None
         checks["cited_expected"] = first_rank(papers_of(ans.cited, aliases), expected) is not None
-    failed_patterns = [p for p in item.get("answer_must_match", []) if not re.search(p, reply)]
+    plain = reply.translate(PLAIN_TEXT)
+    failed_patterns = [p for p in item.get("answer_must_match", []) if not re.search(p, plain)]
     failed_patterns += ["NOT " + p for p in item.get("answer_must_not_match", [])
-                        if re.search(p, reply)]
+                        if re.search(p, plain)]
     if item.get("answer_must_match") or item.get("answer_must_not_match"):
         checks["answer_pattern"] = not failed_patterns
     # Anything not taken from the papers must carry the fixed label -- and an
@@ -152,18 +168,32 @@ def run_full(core, item: dict, aliases: dict) -> dict:
     flagged = core.GENERAL_KNOWLEDGE_LABEL.casefold() in reply.casefold()
     if "expect_flag" in item:
         checks["general_knowledge_flag"] = flagged == item["expect_flag"]
+    if error:
+        checks = {name: False for name in checks}
 
+    # used_sources() numbers every cited passage [1], [2], ... in order of first
+    # use, bogus ones too, so the unbroken run of marks from [1] counts the
+    # distinct citations; those that name no passage the model was given are
+    # missing from ans.cited.
+    marks = {int(n) for n in re.findall(r"\[(\d+)\]", reply)}
+    n_marks = 0
+    while n_marks + 1 in marks:
+        n_marks += 1
     return {
         "decision": ans.decision.model_dump() if ans.decision else None,
         "n_passages": len(ans.docs),
         "retrieved_papers": papers_of(ans.docs, aliases),
         "cited_papers": papers_of(ans.cited, aliases),
+        "bogus_citations": n_marks - len(ans.cited) if ans.docs else 0,
+        "tool_calls": ans.tool_calls,
         "checks": checks,
         "flagged_general_knowledge": flagged,
         "failed_patterns": failed_patterns,
         "reply": reply,
         "sources": ans.sources,
+        "error": error,
         "seconds": seconds,
+        "seconds_in": ans.seconds,
     }
 
 
@@ -201,24 +231,40 @@ def summarise_full(rows: list[dict]) -> None:
     print(f"  answers carrying the general-knowledge label: {len(flagged)} {flagged}")
     secs = sorted(r["seconds"] for r in rows)
     print(f"  seconds per answer  : median {secs[len(secs) // 2]}, max {secs[-1]}")
+    for part in ("route", "search", "answer"):
+        part_secs = sorted(r["seconds_in"].get(part, 0.0) for r in rows)
+        print(f"    of which {part:6s}   : median {part_secs[len(part_secs) // 2]}, max {part_secs[-1]}")
+    searched = [r["id"] for r in rows if r["tool_calls"]]
+    print(f"  answers that called a tool: {len(searched)} {searched}")
+    bogus = [r["id"] for r in rows if r["bogus_citations"]]
+    if bogus:
+        print(f"  answers citing a passage they were not given: {len(bogus)} {bogus}")
     for r in rows:
         bad = [k for k, ok in r["checks"].items() if not ok]
         if bad:
             extra = f"  missing: {r['failed_patterns']}" if r["failed_patterns"] else ""
+            if r["error"]:
+                extra = f"  error: {r['error']}"
             print(f"  FAIL {r['id']:24s} {', '.join(bad)}{extra}")
 
 
 def write_report(path: str, rows: list[dict], header: dict) -> None:
     with open(path, "w", encoding="utf-8") as fh:
         fh.write(f"# Eval answers — {header['label']} ({header['timestamp']})\n\n")
-        fh.write(f"Collection `{header['collection']}`, answer model `{header['answer_model']}`.\n\n")
+        fh.write(f"Collection `{header['collection']}`, answer model `{header['answer_model']}`, "
+                 f"router model `{header['router_model']}`.\n\n")
         for r in rows:
             marks = "  ".join(f"{'✅' if ok else '❌'} {k}" for k, ok in r["checks"].items())
             fh.write(f"## {r['id']} ({r['category']})\n\n**Q:** {r['question']}\n\n")
             fh.write(f"{marks or '(nothing checked automatically)'}  ·  {r['seconds']} s\n\n")
             if r.get("note"):
                 fh.write(f"_Note: {r['note']}_\n\n")
-            fh.write(f"Router: `{json.dumps(r['decision'])}`\n\n{r['reply']}\n\n")
+            fh.write(f"Router: `{json.dumps(r['decision'])}`\n\n")
+            for call in r["tool_calls"]:
+                fh.write(f"Tool call, round {call['round']}: `{call['name']} {call['arguments']}`\n\n")
+            if r["error"]:
+                fh.write(f"**Error:** `{r['error']}`\n\n")
+            fh.write(f"{r['reply']}\n\n")
             if r["sources"]:
                 fh.write(r["sources"] + "\n\n")
             fh.write("---\n\n")
