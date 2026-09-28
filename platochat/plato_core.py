@@ -138,6 +138,20 @@ RERANK_FALLBACK_K    = 2       # fallback below the relevance threshold
 # as-is under a sigmoid it would pass every candidate and silently retire the
 # fallback path below. Override only alongside PLATO_RERANK_MODEL.
 RERANK_THRESHOLD     = float(os.environ.get("PLATO_RERANK_THRESHOLD", "0.5"))
+# How much of a (query, passage) pair the cross-encoder reads, in tokens.
+# bge-reranker-v2-m3 would take 8192 -- its model card's own example stops at
+# 512 -- and at 8192 a single long table could set the cost of a whole search
+# (see rerank_scores). Prose chunks are packed to at most 512 tokens
+# (ingest/textsplitter.py), so the cap leaves every one of them whole, and
+# every abstract and paper record but one; counted on 2026-09-28, what it cuts
+# short are the 65-70 of the 417 tables longer than about 1000 tokens (the
+# chunker keeps tables whole up to 8192), and one ADS abstract that runs on
+# into its reference list (2026Obs...146..192S). The reranker judges those by
+# their caption, header row and first rows; the answering model still gets
+# them whole. Override only alongside PLATO_RERANK_MODEL.
+RERANK_MAX_LENGTH    = int(os.environ.get("PLATO_RERANK_MAX_LENGTH", "1024"))
+# Pairs per forward pass of the cross-encoder, shortest first (rerank_scores).
+RERANK_BATCH_SIZE    = 4
 # Extra searches the answering model may request after the router's first one.
 # Shared by both tools: a turn may go on find_papers, search_publications or
 # (several at once) both.
@@ -347,7 +361,7 @@ print(f"Loading embedding model ({EMBED_MODEL} on {EMBED_DEVICE}) …")
 embed_model = SentenceTransformer(EMBED_MODEL, device=EMBED_DEVICE)
 
 print(f"Loading cross-encoder ({RERANK_MODEL} on {EMBED_DEVICE}) …")
-cross_encoder = CrossEncoder(RERANK_MODEL, device=EMBED_DEVICE)
+cross_encoder = CrossEncoder(RERANK_MODEL, device=EMBED_DEVICE, max_length=RERANK_MAX_LENGTH)
 
 
 # ---------------------------------------------------------------------------
@@ -389,6 +403,29 @@ def vectorize(text: str):
     # ranking today -- it keeps the vectors correct if the collection is ever
     # rebuilt with a dot-product metric, where unit length does matter.
     return embed_model.encode([text], normalize_embeddings=True)[0]
+
+
+def rerank_scores(query: str, texts: list[str]) -> list[float]:
+    """The cross-encoder's score for each text against the query, in the order given.
+
+    Scored a few at a time, shortest first. The model pads every pair in a
+    batch to the longest one in it, and sentence-transformers batches 32 at a
+    time -- i.e. all ~25 candidates at once, in whatever order the searches
+    returned them. One long table among them made every pair as long as
+    itself: measured on 2026-09-28, candidates all under 550 tokens reranked in
+    0.9-1.5 s, but a 3,800-token table among 26 candidates took 11 s (98,000
+    tokens computed for 12,700 real ones), and five to seven tables 17-26 s.
+    Sorted, a long text is padded only against the ones nearest it in length.
+    Sorting changes no score (by at most 1e-7); only RERANK_MAX_LENGTH does.
+    Characters stand in for tokens: near enough to group similar lengths.
+    """
+    order = sorted(range(len(texts)), key=lambda i: len(texts[i]))
+    scores = cross_encoder.predict([[query, texts[i]] for i in order],
+                                   batch_size=RERANK_BATCH_SIZE)
+    out = [0.0] * len(texts)
+    for i, score in zip(order, scores):
+        out[i] = float(score)
+    return out
 
 
 def _doc_summary(doc, extra: dict | None = None) -> dict:
@@ -496,8 +533,7 @@ def rerank(query: str, retrieved: list, found_by: dict) -> list:
             "n_bm25":       n_by["bm25"],
             "n_overlap":    sum(1 for v in found_by.values() if len(v) > 1),
         })
-        cross_inp    = [[query, d.properties["page_content"]] for d in retrieved]
-        cross_scores = cross_encoder.predict(cross_inp)
+        cross_scores = rerank_scores(query, [d.properties["page_content"] for d in retrieved])
 
         scored   = list(zip(cross_scores, retrieved))
         positive = [(s, d) for s, d in scored if s > RERANK_THRESHOLD]
@@ -657,8 +693,8 @@ def find_papers(query: str = "", author: str = "", first_author_only: bool = Fal
     candidates, _ = _union(vector_hits, bm25_hits)
     if not candidates:
         return PaperSearch([], total, True, author_key=key)
-    scores = cross_encoder.predict([
-        [query, d.properties["title"] + "\n\n" + (d.properties.get("abstract") or "")]
+    scores = rerank_scores(query, [
+        d.properties["title"] + "\n\n" + (d.properties.get("abstract") or "")
         for d in candidates
     ])
     scored = sorted(zip(scores, candidates), key=lambda t: t[0], reverse=True)
