@@ -23,7 +23,9 @@ typeset it.
 import json
 import os
 import re
+import time
 import unicodedata
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 
 from dotenv import load_dotenv
@@ -70,6 +72,18 @@ LLM_BASE_URL         = os.environ.get("PLATO_LLM_BASE_URL", "https://labbot.nat.
 # reasons harder still but took 3-5x longer per answer, which a chat UI cannot
 # hide -- it is the tier to reach for if a coding path is added later, not for
 # interactive Q&A.
+#
+# GLM-5.3-Flash -- a separate model (RedHatAI/GLM-5.3-Flash-NVFP4) on a server
+# of its own, and what the lab's lab-rag, lab-standard and lab-instant aliases
+# point to -- was compared on 2026-09-28: three full eval runs each, Flash
+# routing and answering. The checks came out level, but Flash was not faster:
+# in its default mode it reasons about 13x as long (a median of 446 hidden
+# tokens per answer against 34 here), which outweighs its faster generation --
+# median 2.4 s against 1.9 s in the answering model, 8.3 s against 3.1 s at the
+# 90th percentile. It also searched again in more answers (32 of 141 against
+# 20), and it alone returned an empty reply (once, having spent its search
+# budget) and cited passages it had not been given (twice). Hence -high stays.
+# eval/compare_runs.py repeats such a comparison.
 #
 # Routing runs on the -instant tier: the router only picks sources and rewrites
 # the question into a standalone query, so a reasoning tier buys nothing, and a
@@ -1251,8 +1265,9 @@ class Answer:
 
     ``reply`` and ``sources`` are what :func:`answer_question` hands to the
     front-end. The rest is the working: what the router decided, every passage
-    the model was given (first search and follow-ups, in the order given), and
-    which of those it actually cited. eval/run_eval.py scores on these.
+    the model was given (first search and follow-ups, in the order given),
+    which of those it actually cited, the tool calls the answering model made,
+    and where the time went. eval/run_eval.py scores on these.
     """
 
     reply: str | None = None
@@ -1260,6 +1275,22 @@ class Answer:
     decision: RouterDecision | None = None
     docs: list = field(default_factory=list)
     cited: list = field(default_factory=list)
+    # {"round": 1, "name": "find_papers", "arguments": "{...}"} per call; calls
+    # made together share a round, and each round is one more model call.
+    tool_calls: list = field(default_factory=list)
+    # Wall-clock seconds in the router call, in the searches (the first and
+    # every follow-up), and in the answering model's calls.
+    seconds: dict = field(default_factory=dict)
+
+
+@contextmanager
+def _timed(seconds: dict, key: str):
+    """Add the time spent in the block to ``seconds[key]``."""
+    t0 = time.perf_counter()
+    try:
+        yield
+    finally:
+        seconds[key] = round(seconds.get(key, 0.0) + time.perf_counter() - t0, 2)
 
 
 def answer_question(
@@ -1300,6 +1331,7 @@ def answer_question_detailed(
 ) -> Answer:
     """:func:`answer_question`, returning the full :class:`Answer`."""
     history = history or []
+    result = Answer()
 
     with langfuse_client.start_as_current_observation(name="agent-query") as root_obs:
         root_obs.update(input=user_input)
@@ -1311,7 +1343,8 @@ def answer_question_detailed(
         # 1. Route: decide which tools to call
         with langfuse_client.start_as_current_observation(name="route") as route_obs:
             route_obs.update(input={"user_input": user_input})
-            decision = route(user_input, prev_conv)
+            with _timed(result.seconds, "route"):
+                decision = route(user_input, prev_conv)
             route_obs.update(output=decision.model_dump())
 
         # 2. Execute the selected tools
@@ -1322,7 +1355,8 @@ def answer_question_detailed(
             platochat_info_text = tool_get_platochat_info()
 
         if decision.search_query:
-            _, retrieved_docs = tool_search_publications(decision.search_query)
+            with _timed(result.seconds, "search"):
+                _, retrieved_docs = tool_search_publications(decision.search_query)
 
         # 3. Generate the final answer
         blocks: list[str] = []
@@ -1359,10 +1393,11 @@ def answer_question_detailed(
         raw_answer = ""
 
         while True:
-            raw_answer, tool_calls = complete(
-                answer_messages,
-                tools=available_tools() if searches_left > 0 else None,
-            )
+            with _timed(result.seconds, "answer"):
+                raw_answer, tool_calls = complete(
+                    answer_messages,
+                    tools=available_tools() if searches_left > 0 else None,
+                )
             if not tool_calls:
                 break
 
@@ -1377,10 +1412,14 @@ def answer_question_detailed(
                 fs_obs.update(input={"calls": [c["function"] for c in tool_calls]})
                 n_before = len(retrieved_docs)
                 for call in tool_calls:
+                    result.tool_calls.append({
+                        "round": FOLLOWUP_SEARCHES - searches_left + 1, **call["function"],
+                    })
                     # retrieved_docs is the request's running passage list:
                     # a passage's number is its position in it, so follow-up
                     # passages continue where the last search stopped.
-                    tool_content, new_docs = run_search_tool_call(call, retrieved_docs)
+                    with _timed(result.seconds, "search"):
+                        tool_content, new_docs = run_search_tool_call(call, retrieved_docs)
                     retrieved_docs.extend(new_docs)
                     answer_messages.append({
                         "role": "tool",
@@ -1393,7 +1432,7 @@ def answer_question_detailed(
                 })
             searches_left -= 1
 
-        result = Answer(decision=decision, docs=retrieved_docs)
+        result.decision, result.docs = decision, retrieved_docs
         if not raw_answer:
             return result
 
