@@ -19,7 +19,8 @@
 #   make eval-full  score whole answers too (needs the AU network, ~10 min)
 #
 # Prerequisites: Weaviate running locally (the PLATO collection must be loaded)
-# and the env vars in platochat/.env (OPENWEBUI_API_KEY, LANGFUSE_*).
+# and the env vars in platochat/.env (OPENWEBUI_API_KEY; for tracing
+# LANGFUSE_* or OTEL_EXPORTER_OTLP_* -- see platochat/tracing.py).
 
 API_PORT  ?= 8000
 WEB_PORT  ?= 8090

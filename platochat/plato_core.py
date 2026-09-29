@@ -29,16 +29,18 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 
 from dotenv import load_dotenv
-load_dotenv()  # must run before Langfuse imports so credentials are available
+load_dotenv()  # before tracing.configure(), which reads the endpoint from the env
 
 import instructor
 import torch
-from langfuse import Langfuse
-from langfuse.openai import OpenAI
+from openai import OpenAI
 from pydantic import BaseModel, Field
 import weaviate
 import weaviate.classes.query as wq
 from sentence_transformers import CrossEncoder, SentenceTransformer
+
+import tracing
+from tracing import llm_span, span
 
 
 # ---------------------------------------------------------------------------
@@ -56,7 +58,6 @@ def _best_device() -> str:
 
 
 OPENAI_API_KEY       = os.environ.get("OPENAI_API_KEY")
-LANGFUSE_HOST        = os.environ.get("LANGFUSE_HOST", "http://localhost:3000")
 OPENWEBUI_API_KEY    = os.environ.get("OPENWEBUI_API_KEY")
 LLM_BASE_URL         = os.environ.get("PLATO_LLM_BASE_URL", "https://labbot.nat.au.dk/api")
 # The AI Lab endpoint serves GLM-5.3 in three reasoning tiers (GLM-5.3-instant /
@@ -359,7 +360,7 @@ class RouterDecision(BaseModel):
 # Model loading (done once at import)
 # ---------------------------------------------------------------------------
 
-langfuse_client = Langfuse()
+tracing.configure()
 
 print("Loading language model …")
 client = OpenAI(
@@ -367,8 +368,7 @@ client = OpenAI(
     api_key=OPENWEBUI_API_KEY,
 )
 
-# Instructor-wrapped client for structured output. Wraps the existing client
-# (not a fresh one via from_provider) so Langfuse tracing still applies.
+# Instructor-wrapped client for structured output.
 router_client = instructor.from_openai(client, mode=instructor.Mode.JSON)
 
 print(f"Loading embedding model ({EMBED_MODEL} on {EMBED_DEVICE}) …")
@@ -443,7 +443,7 @@ def rerank_scores(query: str, texts: list[str]) -> list[float]:
 
 
 def _doc_summary(doc, extra: dict | None = None) -> dict:
-    """Small JSON-friendly view of a doc for Langfuse traces."""
+    """Small JSON-friendly view of a doc for the traces."""
     props = doc.properties
     out = {
         "chunk_id":        props.get("chunk_id") or "paper:" + (props.get("bibcode") or ""),
@@ -491,7 +491,7 @@ def fetch_candidates(query: str) -> tuple[list, dict]:
     """
     query_vector = vectorize(query)
 
-    with langfuse_client.start_as_current_observation(name="vector-search") as vs_obs:
+    with span("vector-search", kind="RETRIEVER") as vs_obs:
         vs_obs.update(input={"query": query, "limit": RETRIEVAL_LIMIT})
         response = chunks_collection.query.near_vector(
             near_vector=query_vector,
@@ -511,7 +511,7 @@ def fetch_candidates(query: str) -> tuple[list, dict]:
     # F-CAM), ESA document numbers, star identifiers and author names into
     # rough neighbourhoods rather than matching them; BM25 matches them
     # exactly, which is most of what it is here for.
-    with langfuse_client.start_as_current_observation(name="bm25-search") as bm_obs:
+    with span("bm25-search", kind="RETRIEVER") as bm_obs:
         bm_obs.update(input={"query": query, "limit": RETRIEVAL_LIMIT,
                              "properties": BM25_PROPERTIES})
         response = chunks_collection.query.bm25(
@@ -537,7 +537,7 @@ def rerank(query: str, retrieved: list, found_by: dict) -> list:
     if not retrieved:
         return []
 
-    with langfuse_client.start_as_current_observation(name="rerank") as rr_obs:
+    with span("rerank", kind="RERANKER") as rr_obs:
         n_by = {label: sum(1 for v in found_by.values() if label in v)
                 for label in ("vector", "bm25")}
         rr_obs.update(input={
@@ -916,7 +916,7 @@ def tool_get_platochat_info() -> str:
 
 
 def tool_find_papers(**kwargs) -> PaperSearch:
-    with langfuse_client.start_as_current_observation(name="find-papers") as obs:
+    with span("find-papers", kind="TOOL") as obs:
         obs.update(input=kwargs)
         found = find_papers(**kwargs)
         obs.update(output={
@@ -929,7 +929,7 @@ def tool_find_papers(**kwargs) -> PaperSearch:
 
 def tool_search_publications(query: str) -> tuple[str, list]:
     """Run the RAG retrieval. Returns (formatted_context, raw_docs)."""
-    with langfuse_client.start_as_current_observation(name="retrieve-and-rerank") as obs:
+    with span("retrieve-and-rerank", kind="RETRIEVER") as obs:
         obs.update(input={"query": query})
         docs = retrieve_docs(query)
         obs.update(output={"n_docs": len(docs)})
@@ -1170,29 +1170,35 @@ def route(user_input: str, prev_conv: str) -> RouterDecision:
             {"role": "system", "content": "You are a routing agent."},
             {"role": "user", "content": prompt},
         ],
-        name="route",
     )
-    try:
-        if FORCE_STREAM:
-            # create_partial() streams, which keeps the proxy-injected
-            # stream_options valid. Take the last partial and re-validate it as
-            # a full RouterDecision so a truncated stream fails loudly here and
-            # is caught by the fallback below.
-            partial = None
-            for partial in router_client.chat.completions.create_partial(**router_kwargs):
-                pass
-            if partial is None:
-                raise RuntimeError("router stream yielded no object")
-            decision = RouterDecision.model_validate(partial.model_dump())
-        else:
-            decision = router_client.chat.completions.create(**router_kwargs)
-    except Exception as exc:
-        print(f"[router] structured-output call failed ({exc}) — falling back to search with user input")
-        return RouterDecision(platochat_info=False, search_query=user_input)
+    with llm_span("router-llm", ROUTER_MODEL, router_kwargs["messages"]) as obs:
+        try:
+            decision = _route_call(router_kwargs)
+        except Exception as exc:
+            obs.error(exc)
+            print(f"[router] structured-output call failed ({exc}) — falling back to search with user input")
+            return RouterDecision(platochat_info=False, search_query=user_input)
+        obs.update(output=decision.model_dump())
 
     decision.search_query = decision.search_query.strip()
     print(f"[router decision] {decision.model_dump()}")
     return decision
+
+
+def _route_call(router_kwargs: dict) -> RouterDecision:
+    """The router's structured-output call itself."""
+    if FORCE_STREAM:
+        # create_partial() streams, which keeps the proxy-injected
+        # stream_options valid. Take the last partial and re-validate it as
+        # a full RouterDecision so a truncated stream fails loudly here and
+        # is caught by the fallback in route().
+        partial = None
+        for partial in router_client.chat.completions.create_partial(**router_kwargs):
+            pass
+        if partial is None:
+            raise RuntimeError("router stream yielded no object")
+        return RouterDecision.model_validate(partial.model_dump())
+    return router_client.chat.completions.create(**router_kwargs)
 
 
 # ---------------------------------------------------------------------------
@@ -1211,13 +1217,25 @@ def complete(messages: list[dict], tools: list | None = None) -> tuple[str, list
     does the right thing here. Arguments arrive whole for short calls, but vLLM
     may split longer ones, so they are accumulated by index.
     """
-    kwargs = dict(model=ANSWER_MODEL, messages=messages, name="answer")
+    kwargs = dict(model=ANSWER_MODEL, messages=messages)
     if tools:
         kwargs["tools"] = tools
         kwargs["tool_choice"] = "auto"
 
+    with llm_span("answer-llm", ANSWER_MODEL, messages, tools) as obs:
+        text, calls, usage = _complete_call(kwargs)
+        # The raw text, reasoning included: the trace is where to read it.
+        obs.update(output={"content": text, "tool_calls": calls} if calls else text)
+        if usage is not None:
+            obs.usage(usage.prompt_tokens, usage.completion_tokens)
+    return strip_reasoning(text), calls
+
+
+def _complete_call(kwargs: dict) -> tuple[str, list[dict], object]:
+    """The call itself: ``(raw text, tool_calls, usage or None)``."""
     if not FORCE_STREAM:
-        message = client.chat.completions.create(**kwargs).choices[0].message
+        response = client.chat.completions.create(**kwargs)
+        message = response.choices[0].message
         calls = [
             {
                 "id": tc.id,
@@ -1229,12 +1247,15 @@ def complete(messages: list[dict], tools: list | None = None) -> tuple[str, list
             }
             for tc in (message.tool_calls or [])
         ]
-        return strip_reasoning(message.content or ""), calls
+        return message.content or "", calls, response.usage
 
     # See FORCE_STREAM above: stream and reassemble the deltas.
     parts: list[str] = []
     acc: dict[int, dict] = {}
+    usage = None
     for chunk in client.chat.completions.create(stream=True, **kwargs):
+        if getattr(chunk, "usage", None):
+            usage = chunk.usage            # the proxy asks for it (see FORCE_STREAM)
         if not chunk.choices:
             continue                       # usage-only chunk at end of stream
         delta = chunk.choices[0].delta
@@ -1256,7 +1277,7 @@ def complete(messages: list[dict], tools: list | None = None) -> tuple[str, list
             if tc.function and tc.function.arguments:
                 slot["function"]["arguments"] += tc.function.arguments
 
-    return strip_reasoning("".join(parts)), [acc[i] for i in sorted(acc)]
+    return "".join(parts), [acc[i] for i in sorted(acc)], usage
 
 
 @dataclass
@@ -1333,7 +1354,7 @@ def answer_question_detailed(
     history = history or []
     result = Answer()
 
-    with langfuse_client.start_as_current_observation(name="agent-query") as root_obs:
+    with span("agent-query", kind="AGENT") as root_obs:
         root_obs.update(input=user_input)
 
         prev_conv = "\n".join(
@@ -1341,7 +1362,7 @@ def answer_question_detailed(
         )
 
         # 1. Route: decide which tools to call
-        with langfuse_client.start_as_current_observation(name="route") as route_obs:
+        with span("route") as route_obs:
             route_obs.update(input={"user_input": user_input})
             with _timed(result.seconds, "route"):
                 decision = route(user_input, prev_conv)
@@ -1406,9 +1427,7 @@ def answer_question_detailed(
                 "content": raw_answer or None,
                 "tool_calls": tool_calls,
             })
-            with langfuse_client.start_as_current_observation(
-                name="follow-up-search"
-            ) as fs_obs:
+            with span("follow-up-search", kind="TOOL") as fs_obs:
                 fs_obs.update(input={"calls": [c["function"] for c in tool_calls]})
                 n_before = len(retrieved_docs)
                 for call in tool_calls:
@@ -1434,6 +1453,7 @@ def answer_question_detailed(
 
         result.decision, result.docs = decision, retrieved_docs
         if not raw_answer:
+            root_obs.update(output="(empty answer)")
             return result
 
         # 4. Post-process: rewrite/strip citation tags, build the sources block.
@@ -1445,4 +1465,5 @@ def answer_question_detailed(
         else:
             result.reply = _CITE_RE.sub("", raw_answer)
 
+        root_obs.update(output=result.reply)
         return result
