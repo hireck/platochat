@@ -1035,7 +1035,7 @@ def tool_search_publications(query: str) -> tuple[str, list]:
 
 
 def tool_search_esa_website(query: str) -> list:
-    with langfuse_client.start_as_current_observation(name="search-esa-website") as obs:
+    with span("search-esa-website", kind="RETRIEVER") as obs:
         obs.update(input={"query": query})
         docs = retrieve_site_docs(query)
         obs.update(output={"n_docs": len(docs)})
