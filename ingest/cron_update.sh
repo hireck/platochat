@@ -11,7 +11,8 @@
 #
 # update_corpus.py holds a lock, so a run that starts while the previous one is
 # still going exits at once. The exit status is non-zero when the list could
-# not be refreshed or the index not updated -- that, or the log, is what to
+# not be refreshed, the index not updated, or ESA's website not crawled and
+# indexed -- that, or the log, is what to
 # watch. A paper whose download failed does not count as a failure: it is
 # reported in the log and in `make status`, and tried again on later runs.
 set -u

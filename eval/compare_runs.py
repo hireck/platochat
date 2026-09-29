@@ -87,9 +87,11 @@ def summary(rows: list[dict]) -> dict[str, str]:
         out["tool rounds per answer"] = f"{statistics.mean(rounds):.2f}"
         out["  search_publications calls"] = str(names["search_publications"])
         out["  find_papers calls"] = str(names["find_papers"])
+        out["  search_esa_website calls"] = str(names["search_esa_website"])
     else:
         for key in ("answers calling a tool", "tool rounds per answer",
-                    "  search_publications calls", "  find_papers calls"):
+                    "  search_publications calls", "  find_papers calls",
+                    "  search_esa_website calls"):
             out[key] = "–"
 
     out["words per answer, median"] = median([len(r["reply"].split()) for r in rows])

@@ -126,6 +126,11 @@ WEAVIATE_COLLECTION  = os.environ.get("PLATO_COLLECTION", "PLATO")
 # per paper (title, abstract, authors, date), for the find_papers tool.
 PAPER_COLLECTION     = os.environ.get("PLATO_PAPER_COLLECTION",
                                       WEAVIATE_COLLECTION + "_PAPERS")
+# ESA's PLATO website (https://www.cosmos.esa.int/web/plato/), crawled nightly
+# by ingest/esa_site.py: the practical side the papers barely touch -- calls
+# for proposals, Guest Observer rules, proposal tools, data products and
+# access. Searched by the search_esa_website tool.
+SITE_COLLECTION      = os.environ.get("PLATO_SITE_COLLECTION", "PLATO_ESA_SITE")
 
 HISTORY_WINDOW       = 4       # previous messages folded into the prompt
 # Candidates fetched per retriever. Vector and BM25 run as separate queries
@@ -167,8 +172,8 @@ RERANK_MAX_LENGTH    = int(os.environ.get("PLATO_RERANK_MAX_LENGTH", "1024"))
 # Pairs per forward pass of the cross-encoder, shortest first (rerank_scores).
 RERANK_BATCH_SIZE    = 4
 # Extra searches the answering model may request after the router's first one.
-# Shared by both tools: a turn may go on find_papers, search_publications or
-# (several at once) both.
+# Shared by all three tools: a turn may go on search_publications, find_papers,
+# search_esa_website, or several of them at once.
 FOLLOWUP_SEARCHES    = int(os.environ.get("PLATO_FOLLOWUP_SEARCHES", "2"))
 
 # find_papers. Title, abstract and ADS keywords are what a topic query is
@@ -187,6 +192,15 @@ PAPER_FALLBACK_K      = 3      # shown, as weak matches, when none passes
 PAPER_FULL_ABSTRACTS  = 10
 PAPER_SHORT_ABSTRACT  = 400    # characters
 PAPER_SHOWN_AUTHORS   = 6
+
+# search_esa_website: hybrid search and rerank as for the chunks, over the
+# website's passages. The pages are titled by topic ("Proposal Templates",
+# "Data Products"), so the title is boosted as a paper's is.
+SITE_BM25_PROPERTIES  = ["page_content", "title^2", "section_headers"]
+# The ESA contact point for what the website does not answer (a proposal's
+# status, an account): the footer of every page links to it.
+ESA_HELPDESK_URL      = ("https://support.cosmos.esa.int/situ-service-desk/servicedesk/"
+                         "customer/portal/15")
 
 
 # ---------------------------------------------------------------------------
@@ -237,7 +251,9 @@ The user message may be accompanied by:
     useful links from the public PLATO-Pub website, and/or
   - passages retrieved from the index of published articles on ESA's PLATO
     mission, each preceded by its metadata: a `passage` number, the paper it
-    comes from, and when that paper was published.
+    comes from, and when that paper was published, and/or
+  - passages from ESA's PLATO website, marked `source: ESA PLATO website`,
+    with the page they come from and the date the page was last checked.
 
 Some papers are in the index by their abstract alone, mostly because their
 full text is paywalled; their passages are marked `coverage: abstract only`.
@@ -300,6 +316,33 @@ authors, date, abstract), numbered like passages; cite the records you use in
 the same way. When you list papers, give each with its authors, year and
 title. Report the number of matching papers it gives you, and say so when you
 show only some of them.
+"""
+
+# Appended when the website index exists. Like find_papers, it is a tool of
+# the answering model only: the router's first search always goes to the
+# papers, so a practical question arrives with passages that cannot answer it,
+# and the prompt has to send the model to the website instead of letting it
+# fall back on general knowledge -- which is years out of date on exactly the
+# things the website is for (calls, deadlines, data releases).
+SITE_TOOL_INSTRUCTIONS = f"""
+You also have a `search_esa_website` tool. It searches ESA's PLATO website
+(cosmos.esa.int/web/plato), which is kept up to date by ESA's PLATO Science
+Operations Centre. Use it for the practical side of the mission, which the
+publications rarely cover: the Guest Observers Programme and its calls for
+proposals (AO-1 and later), eligibility, deadlines, proposal tools and
+templates, the proposal review, the observing fields and available targets,
+data products, data releases and data access, the PLATO Input Catalogue as
+released, the mission's status and schedule, and whom to contact. Call it for
+such questions even when passages from the publications were given.
+
+On these practical matters the website is the authority and is newer than the
+papers: where the two disagree, go with the website and say that the papers
+gave an earlier figure. Its passages are cited like any other. Pass on the
+links it contains when they help the user act (a template, a manual, a form).
+The website says its own pages only summarise: for the binding rules of a
+call it points to its Policies & Procedures document, and so should you. For
+anything the website does not answer, such as the state of a particular
+proposal, point the user to the PLATO Helpdesk: {ESA_HELPDESK_URL}
 """
 
 ROUTER_PROMPT = """\
@@ -393,6 +436,12 @@ if weaviate_client.collections.exists(PAPER_COLLECTION):
 else:
     papers_collection = None
     print(f"No paper index '{PAPER_COLLECTION}': find_papers is not offered.")
+# Likewise the website index (ingest/esa_site.py, or `make website`).
+if weaviate_client.collections.exists(SITE_COLLECTION):
+    site_collection = weaviate_client.collections.get(SITE_COLLECTION)
+else:
+    site_collection = None
+    print(f"No website index '{SITE_COLLECTION}': search_esa_website is not offered.")
 
 
 # ---------------------------------------------------------------------------
@@ -482,18 +531,24 @@ def _union(vector_hits: list, bm25_hits: list) -> tuple[list, dict]:
     return merged, found_by
 
 
-def fetch_candidates(query: str) -> tuple[list, dict]:
+def fetch_candidates(query: str, collection=None,
+                     bm25_properties: list[str] | None = None) -> tuple[list, dict]:
     """First stage: the vector and BM25 searches, unioned.
 
     Returns ``(candidates, found_by)``. Separate from :func:`rerank` so that
     eval/run_eval.py can tell a paper the searches never surfaced from one the
     reranker then threw away -- two failures with different fixes.
+
+    Searches the publications unless given another collection of passages
+    (the website's).
     """
+    collection = collection if collection is not None else chunks_collection
+    bm25_properties = bm25_properties or BM25_PROPERTIES
     query_vector = vectorize(query)
 
     with langfuse_client.start_as_current_observation(name="vector-search") as vs_obs:
         vs_obs.update(input={"query": query, "limit": RETRIEVAL_LIMIT})
-        response = chunks_collection.query.near_vector(
+        response = collection.query.near_vector(
             near_vector=query_vector,
             limit=RETRIEVAL_LIMIT,
             return_metadata=wq.MetadataQuery(distance=True),
@@ -513,10 +568,10 @@ def fetch_candidates(query: str) -> tuple[list, dict]:
     # exactly, which is most of what it is here for.
     with langfuse_client.start_as_current_observation(name="bm25-search") as bm_obs:
         bm_obs.update(input={"query": query, "limit": RETRIEVAL_LIMIT,
-                             "properties": BM25_PROPERTIES})
-        response = chunks_collection.query.bm25(
+                             "properties": bm25_properties})
+        response = collection.query.bm25(
             query=query,
-            query_properties=BM25_PROPERTIES,
+            query_properties=bm25_properties,
             limit=RETRIEVAL_LIMIT,
             return_metadata=wq.MetadataQuery(score=True),
         )
@@ -575,6 +630,29 @@ def retrieve_docs(query: str) -> list:
     return rerank(query, *fetch_candidates(query))
 
 
+def retrieve_site_docs(query: str) -> list:
+    """The website's passages for a query, found and reranked like the papers'."""
+    return rerank(query, *fetch_candidates(query, site_collection, SITE_BM25_PROPERTIES))
+
+
+def is_site(doc) -> bool:
+    """A passage from ESA's PLATO website, as opposed to one from a paper."""
+    return (doc.properties.get("chunk_id") or "").startswith("esa:")
+
+
+def _site_meta(props: dict, number: int) -> dict:
+    return {
+        "passage": number,
+        "source":  "ESA PLATO website",
+        "page":    props.get("title"),
+        "section": props.get("section_headers"),
+        "url":     props.get("url"),
+        # When this text was last found on the site. The site's own
+        # last-updated date covers every page, so it says little about this one.
+        "checked": props.get("checked"),
+    }
+
+
 def format_docs(docs: list, first_number: int = 1) -> str:
     """Passages as the model sees them, numbered from ``first_number``."""
     if not docs:
@@ -582,6 +660,10 @@ def format_docs(docs: list, first_number: int = 1) -> str:
     parts = []
     for number, d in enumerate(docs, start=first_number):
         props = d.properties
+        if is_site(d):
+            parts.append(json.dumps(_site_meta(props, number), indent=4, ensure_ascii=False)
+                         + "\n" + props["page_content"])
+            continue
         meta = {
             "passage":   number,
             "paper":     props.get("short_ref"),
@@ -851,6 +933,19 @@ def _snippet(text: str, limit: int = 60) -> str:
     return text[:limit].rsplit(" ", 1)[0] + "…"
 
 
+def _site_source_line(idx: int, props: dict) -> str:
+    """'[3] ESA PLATO website: *[Proposal Templates](url)*, checked 2026-09-29 — Section: ...'"""
+    title = props.get("title") or "ESA PLATO website"
+    if props.get("url"):
+        title = f"[{title}]({props['url']})"
+    line = f"[{idx}] ESA PLATO website: *{title}*"
+    if props.get("checked"):
+        line += f", checked {props['checked']}"
+    headers = props.get("section_headers") or []
+    section = "Section: " + ", ".join(headers) if headers else _snippet(props["page_content"])
+    return line + f" — {section}"
+
+
 def build_sources_text(docs: list, source_numbers: list[str]) -> str:
     no_refs = (
         "_The information presented here does not explicitly reference the "
@@ -865,6 +960,9 @@ def build_sources_text(docs: list, source_numbers: list[str]) -> str:
             continue
         props   = doc.properties
         title   = props.get("title") or "Unknown title"
+        if is_site(doc):
+            lines.append(_site_source_line(idx, props))
+            continue
         # A paper record from find_papers is its title and abstract.
         headers = (["Abstract"] if is_paper(doc)
                    else _without_title(props.get("section_headers") or [], title))
@@ -934,6 +1032,14 @@ def tool_search_publications(query: str) -> tuple[str, list]:
         docs = retrieve_docs(query)
         obs.update(output={"n_docs": len(docs)})
     return format_docs(docs), docs
+
+
+def tool_search_esa_website(query: str) -> list:
+    with langfuse_client.start_as_current_observation(name="search-esa-website") as obs:
+        obs.update(input={"query": query})
+        docs = retrieve_site_docs(query)
+        obs.update(output={"n_docs": len(docs)})
+    return docs
 
 
 # Offered to the *answering* model only (the router picks the first search
@@ -1023,12 +1129,51 @@ FIND_PAPERS_TOOL = {
 }
 
 
+# The website index. Offered whenever the collection exists; it draws on the
+# same follow-up budget as the other two.
+SEARCH_WEBSITE_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "search_esa_website",
+        "description": (
+            "Search ESA's PLATO website (cosmos.esa.int/web/plato), the mission's "
+            "current source of practical information: the Guest Observers Programme "
+            "and its calls for proposals (AO-1), eligibility, deadlines, proposal "
+            "software and templates, proposal review, observing fields and available "
+            "targets, data products and data access, the PLATO Input Catalogue, "
+            "mission status, and contacts. Use it for how-to and procedural "
+            "questions, which the publications rarely answer. The query must be "
+            "self-contained English."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "A self-contained search query over the ESA PLATO website.",
+                },
+            },
+            "required": ["query"],
+        },
+    },
+}
+
+
 def available_tools() -> list:
-    return SEARCH_TOOL_SCHEMA + ([FIND_PAPERS_TOOL] if papers_collection is not None else [])
+    return (SEARCH_TOOL_SCHEMA
+            + ([FIND_PAPERS_TOOL] if papers_collection is not None else [])
+            + ([SEARCH_WEBSITE_TOOL] if site_collection is not None else []))
+
+
+def tool_instructions() -> str:
+    """What the system prompt says about the tools on offer."""
+    return (SEARCH_TOOL_INSTRUCTIONS.format(n=FOLLOWUP_SEARCHES)
+            + (FIND_PAPERS_INSTRUCTIONS if papers_collection is not None else "")
+            + (SITE_TOOL_INSTRUCTIONS if site_collection is not None else ""))
 
 
 def run_search_tool_call(call: dict, given: list) -> tuple[str, list]:
-    """Execute one model-requested tool call: search_publications or find_papers.
+    """Execute one model-requested tool call: search_publications, find_papers or search_esa_website.
 
     ``given`` is every passage and paper record handed to the model so far in
     this request, in order; a record's passage number is its position there.
@@ -1064,8 +1209,12 @@ def run_search_tool_call(call: dict, given: list) -> tuple[str, list]:
     if not query:
         return "Error: 'query' is required and must be a non-empty string.", []
 
-    print(f"[follow-up search] {query!r}")
-    _, docs = tool_search_publications(query)
+    if name == "search_esa_website":
+        print(f"[website search] {query!r}")
+        docs, where = tool_search_esa_website(query), "ESA's PLATO website"
+    else:
+        print(f"[follow-up search] {query!r}")
+        (_, docs), where = tool_search_publications(query), "the publications"
     fresh = [d for d in docs if doc_key(d) not in number_of]
 
     if not fresh:
@@ -1075,7 +1224,7 @@ def run_search_tool_call(call: dict, given: list) -> tuple[str, list]:
         ), []
 
     return (
-        "The following passages were retrieved from the publications. Cite each "
+        f"The following passages were retrieved from {where}. Cite each "
         "one you use with <cite>N</cite> tags, where N is the passage number shown "
         "in the metadata (e.g. <cite>9</cite>):\n\n"
         + format_docs(fresh, len(given) + 1)
@@ -1302,7 +1451,8 @@ def answer_question(
     The router picks the first search; the answering model may then request up
     to ``FOLLOWUP_SEARCHES`` more rounds of tool calls when the passages it was
     handed do not cover the question: ``search_publications`` for more passages,
-    ``find_papers`` for paper records (by topic, author and year).
+    ``find_papers`` for paper records (by topic, author and year),
+    ``search_esa_website`` for the practical information on ESA's PLATO pages.
 
     Parameters
     ----------
@@ -1379,9 +1529,7 @@ def answer_question_detailed(
         answer_messages = [
             {
                 "role": "system",
-                "content": system_prompt
-                + SEARCH_TOOL_INSTRUCTIONS.format(n=FOLLOWUP_SEARCHES)
-                + (FIND_PAPERS_INSTRUCTIONS if papers_collection is not None else ""),
+                "content": system_prompt + tool_instructions(),
             },
             {"role": "user", "content": "\n\n---\n\n".join(blocks)},
         ]

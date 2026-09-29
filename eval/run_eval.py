@@ -31,7 +31,11 @@ Results go to eval/results/<timestamp>-<label>/. Compare two runs with
 ``--against eval/results/<earlier>/results.json``.
 
 The questions live in eval/questions.json; ``expected_papers`` are bibcodes as
-in ingest/papers.json, and older bibcodes of the same paper match too.
+in ingest/papers.json, and older bibcodes of the same paper match too. A page
+of ESA's PLATO website counts as a source too, named ``esa:<page>`` after its
+address (``esa:ao-1`` for https://www.cosmos.esa.int/web/plato/ao-1). A
+question whose expected sources are all such pages is scored in retrieval mode
+through the website index (search_esa_website) instead of the papers'.
 """
 
 from __future__ import annotations
@@ -57,13 +61,26 @@ def load_aliases() -> dict[str, str]:
     return {alias: bib for bib, rec in papers.items() for alias in rec["aliases"]}
 
 
+def source_of(doc, aliases: dict[str, str]) -> str:
+    """The current bibcode of a doc's paper, or ``esa:<page>`` for a website passage."""
+    props = doc.properties
+    if props.get("page"):
+        return "esa:" + props["page"]
+    # A passage names its paper in parent_doc, a find_papers record in bibcode.
+    bib = props.get("parent_doc") or props.get("bibcode") or ""
+    return aliases.get(bib, bib)
+
+
+def is_site_question(item: dict) -> bool:
+    expected = item.get("expected_papers") or []
+    return bool(expected) and all(e.startswith("esa:") for e in expected)
+
+
 def papers_of(docs: list, aliases: dict[str, str]) -> list[str]:
-    """Current bibcode of each doc's paper, in order, without repeats."""
+    """Current bibcode of each doc's paper (or esa:<page>), in order, without repeats."""
     out: list[str] = []
     for d in docs:
-        # A passage names its paper in parent_doc, a find_papers record in bibcode.
-        bib = d.properties.get("parent_doc") or d.properties.get("bibcode") or ""
-        bib = aliases.get(bib, bib)
+        bib = source_of(d, aliases)
         if bib not in out:
             out.append(bib)
     return out
@@ -104,7 +121,11 @@ def run_retrieval(core, item: dict, aliases: dict) -> dict:
     if "paper_search" in item:
         return run_paper_search(core, item, aliases)
     t0 = time.time()
-    candidates, found_by = core.fetch_candidates(item["question"])
+    if is_site_question(item):
+        candidates, found_by = core.fetch_candidates(item["question"], core.site_collection,
+                                                     core.SITE_BM25_PROPERTIES)
+    else:
+        candidates, found_by = core.fetch_candidates(item["question"])
     final = core.rerank(item["question"], candidates, found_by)
     expected = item["expected_papers"]
 
@@ -112,8 +133,7 @@ def run_retrieval(core, item: dict, aliases: dict) -> dict:
     # is finding things vector search misses, or only duplicating it.
     via: set[str] = set()
     for d in candidates:
-        bib = d.properties.get("parent_doc") or ""
-        if aliases.get(bib, bib) in expected:
+        if source_of(d, aliases) in expected:
             via.update(found_by[str(d.uuid)])
 
     pool, top = papers_of(candidates, aliases), papers_of(final, aliases)

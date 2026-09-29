@@ -376,5 +376,77 @@
     "answer_must_match": ["(?i)Uzundag"],
     "expect_flag": false,
     "note": "A topic question about papers rather than facts. Jannsen et al. (2025) simulate white-dwarf pulsators too and may be named; Eschen et al. (2024) mention them in passing."
+  },
+  {
+    "id": "website-apply",
+    "category": "website",
+    "question": "How can I apply for observing time with PLATO?",
+    "expected_papers": ["esa:guest-observers", "esa:announcements-of-opportunity", "esa:ao-1", "esa:proposal-submission", "esa:where-to-start", "esa:ao-1-call-open-announcement"],
+    "answer_must_match": ["(?i)guest observer", "(?i)(announcement of opportunity|AO-1|call for proposals)"],
+    "expect_flag": false,
+    "note": "Practical: only ESA's PLATO website answers it. The router's first search goes to the papers, so the model must call search_esa_website itself."
+  },
+  {
+    "id": "website-go-share",
+    "category": "website",
+    "question": "What share of PLATO's science data rate is allocated to Guest Observers?",
+    "expected_papers": ["esa:guest-observers", "esa:ao-1-call-open-announcement", "2025ExA....59...26R", "2025A&A...694A.313N", "2025A&A...694A.185J", "2026ExA....61...23U", "2024tkas.confE..22A"],
+    "answer_must_match": ["\\b8\\s?(\\\\)?%"],
+    "expect_flag": false,
+    "note": "Stated on the website and in five papers alike, so either source counts."
+  },
+  {
+    "id": "website-ao1-close",
+    "category": "website",
+    "question": "When did the AO-1 call for PLATO Guest Observer proposals close?",
+    "expected_papers": ["esa:ao-1", "esa:ao-1-programmes"],
+    "answer_must_match": ["(?i)21 May|May 21"],
+    "expect_flag": false,
+    "note": "21 May 2026, 12:00 CEST (the AO-1 milestones table). No paper gives it."
+  },
+  {
+    "id": "website-templates",
+    "category": "website",
+    "question": "Which proposal templates does ESA provide for PLATO's AO-1 call, and in which formats?",
+    "expected_papers": ["esa:proposal-templates"],
+    "answer_must_match": ["(?i)LaTeX", "(?i)\\bWord\\b"],
+    "expect_flag": false,
+    "note": "Three templates (Scientific Justification, Technical Justification and Implementation, Team Expertise and Management Plan), each in Word and LaTeX; the answer should pass on the page link."
+  },
+  {
+    "id": "website-software",
+    "category": "website",
+    "question": "Which software do I use to prepare and submit a PLATO Guest Observer proposal?",
+    "expected_papers": ["esa:proposal-software", "esa:ao-1", "esa:where-to-start", "esa:faq"],
+    "answer_must_match": ["(?i)CHS|Campaign Handling", "(?i)CfP|Call for Proposals Toolset"],
+    "expect_flag": false,
+    "note": "The ESA Science Campaign Handling System (CHS) and the PLATO Call for Proposals Toolset (CfP)."
+  },
+  {
+    "id": "website-awarded",
+    "category": "website",
+    "question": "How many proposals were awarded observing time in PLATO's first Guest Observer call?",
+    "expected_papers": ["esa:ao-1-programmes"],
+    "answer_must_match": ["\\b23\\b"],
+    "expect_flag": false,
+    "note": "23 awarded and 28 waitlisted, of 117 submitted (AO-1 Programmes page)."
+  },
+  {
+    "id": "website-data-access",
+    "category": "website",
+    "question": "Where will PLATO data be made available to the community?",
+    "expected_papers": ["esa:plato-arxiv", "esa:data", "esa:data-products", "2025ExA....59...26R"],
+    "answer_must_match": ["\\bPAX\\b"],
+    "expect_flag": false,
+    "note": "The PLATO archive, PAX. Rauer et al. (2025) name it too (as the 'PLATO Archive'); the website calls it the 'PLATO ArXiv' and describes what it offers now."
+  },
+  {
+    "id": "website-anonymous",
+    "category": "website",
+    "question": "Do PLATO Guest Observer proposals have to be anonymised?",
+    "expected_papers": ["esa:dual-anonymous-guidelines", "esa:where-to-start", "esa:proposal-review", "esa:faq", "esa:announcements-of-opportunity", "esa:ao-1", "esa:proposal-submission"],
+    "answer_must_match": ["(?i)dual.anonym"],
+    "expect_flag": false,
+    "note": "Yes: the review is dual-anonymous, and non-compliant proposals are rejected."
   }
 ]

@@ -17,6 +17,11 @@ One command for the whole ingest, safe to run every night (see cron_update.sh):
              objects of papers that are new or changed, delete those of papers
              that left it (reindex_weaviate.py); then the same for the
              whole-paper index beside it, <collection>_PAPERS (paper_index.py)
+5. website   crawl ESA's PLATO website and bring its index, PLATO_ESA_SITE, up
+             to date (esa_site.py): the practical information -- calls for
+             proposals, proposal tools, data access -- that the papers lack.
+             It does not depend on the steps above; its pages' markdown is
+             kept in <data>/esa_site/ for reading
 
 Only what changed is done, and the two halves keep track differently:
 
@@ -65,6 +70,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import fetch_fulltext  # noqa: E402
 import fetch_licences  # noqa: E402
+import esa_site  # noqa: E402
 import paper_index  # noqa: E402
 from fetch_fulltext import (  # noqa: E402
     FetchError, Fetched, access_of, fulltext_allowed, fulltext_sources, sha256_file,
@@ -737,6 +743,22 @@ def index_stage(manifest: dict, papers: dict, paths: Paths, args,
     return stats
 
 
+def website_stage(paths: Paths, args) -> dict:
+    """Crawl ESA's PLATO website and bring PLATO_ESA_SITE up to date (esa_site.py)."""
+    import weaviate
+
+    # Crawled and converted before connecting: see esa_site.fetch_site.
+    site = esa_site.fetch_site(os.path.join(paths.data, "esa_site"), log=log)
+    client = weaviate.connect_to_local()
+    try:
+        if not client.is_ready():
+            raise RuntimeError("Weaviate is not ready")
+        return esa_site.sync_site(client, site, device=args.device, dry_run=args.dry_run,
+                                  allow_removals=args.allow_removals, log=log)
+    finally:
+        client.close()
+
+
 # ---------------------------------------------------------------------------
 # Reporting
 # ---------------------------------------------------------------------------
@@ -784,8 +806,8 @@ def main() -> int:
     ap.add_argument("--md-dir", default=DEFAULT_MD_DIR, help="the markdown corpus")
     ap.add_argument("--metadata", default=DEFAULT_METADATA)
     ap.add_argument("--env", default=DEFAULT_ENV, help="file holding ADS_API_KEY")
-    ap.add_argument("--stages", default="metadata,licences,fetch,index",
-                    help="which steps to run (default: metadata,licences,fetch,index)")
+    ap.add_argument("--stages", default="metadata,licences,fetch,index,website",
+                    help="which steps to run (default: metadata,licences,fetch,index,website)")
     ap.add_argument("--dry-run", action="store_true",
                     help="say what would be done; download, convert and write nothing")
     ap.add_argument("--status", action="store_true", help="summarise the manifest and stop")
@@ -900,10 +922,22 @@ def run(args, paths: Paths, manifest: dict, stages: set[str], ap) -> int:
             log(f"  !! indexing failed: {type(exc).__name__}: {exc}")
             problems.append(f"indexing failed ({type(exc).__name__})")
 
+    # The website has nothing to do with the paper list, so --only skips it.
+    site_stats: dict = {}
+    if "website" in stages and not args.only:
+        log(f"\n5. Website ('{esa_site.DEFAULT_COLLECTION}')")
+        try:
+            site_stats = website_stage(paths, args)
+        except Exception as exc:
+            log(f"  !! website update failed: {type(exc).__name__}: {exc}")
+            problems.append(f"website update failed ({type(exc).__name__})")
+
     summary(manifest, papers)
     took = time.time() - t0
     line = (f"{len(added)} full text(s) added, {stats['papers written']} paper(s) written, "
-            f"{stats['papers removed']} removed, in {took / 60:.0f} min")
+            f"{stats['papers removed']} removed, "
+            + (f"{site_stats['written']} website page(s) written, " if site_stats else "")
+            + f"in {took / 60:.0f} min")
     log(f"\nThis run: {line}" + (f"; problems: {'; '.join(problems)}" if problems else ""))
     if not args.dry_run:
         manifest["last_run"] = {"at": started, "ok": not problems, "summary": line,

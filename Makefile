@@ -9,12 +9,14 @@
 #   make urls     print the local URLs
 #   make metadata refresh ingest/papers.json from the PLATO-Pub list and ADS
 #   make update   bring the corpus up to date: refresh the list, fetch and convert
-#                 new full texts, update the index paper by paper (what cron runs)
+#                 new full texts, update the index paper by paper, re-crawl the
+#                 ESA website (what cron runs)
 #   make status   which papers have full text, which are abstract only, what failed
 #   make licences look up under what licence each paper is published, and report
 #   make reindex  rebuild the Weaviate PLATO collection from the markdown corpus
 #                 (DESTRUCTIVE — see the reindex target below)
 #   make papers   bring the whole-paper index (PLATO_PAPERS) up to date on its own
+#   make website  crawl ESA's PLATO website into its index (PLATO_ESA_SITE) on its own
 #   make eval     score retrieval against eval/questions.json (no LLM, ~1 min)
 #   make eval-full  score whole answers too (needs the AU network, ~10 min)
 #
@@ -42,7 +44,7 @@ WEB_PYTHON ?= python3
 # The eval questions and results.
 EVAL_DIR  := eval
 
-.PHONY: dev api web streamlit venv check-venv kill urls reindex papers metadata update status licences eval eval-full
+.PHONY: dev api web streamlit venv check-venv kill urls reindex papers website metadata update status licences eval eval-full
 
 venv:
 	$(BASE_PYTHON) -m venv $(VENV)
@@ -97,6 +99,16 @@ reindex: check-venv
 PAPER_ARGS ?=
 papers: check-venv
 	$(PYTHON) $(INGEST_DIR)/paper_index.py $(PAPER_ARGS)
+
+# ESA's PLATO website (cosmos.esa.int/web/plato), behind the chatbot's
+# search_esa_website tool: calls for proposals, proposal tools, data access.
+# `make update` does this too, as its last step; this is for running it on its
+# own. A minute of crawling; only pages whose text changed are re-embedded.
+#   make website SITE_ARGS="--dry-run"
+#   make website SITE_ARGS="--save /tmp/esa_site"   # keep the pages' markdown
+SITE_ARGS ?=
+website: check-venv
+	$(PYTHON) $(INGEST_DIR)/esa_site.py $(SITE_ARGS)
 
 # Which papers exist and what ADS knows about them (dates, DOIs, arXiv ids).
 # Run before a reindex: the index only holds papers that are on the list.
