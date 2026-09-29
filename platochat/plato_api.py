@@ -16,8 +16,9 @@ Run it:
     uvicorn plato_api:app --reload --port 8000
 
 Requires Weaviate running locally (same as the Streamlit app) and the env vars
-in ``.env`` (OPENWEBUI_API_KEY, LANGFUSE_*). Model loading happens once when
-``plato_core`` is imported, so the first start is slow.
+in ``.env`` (OPENWEBUI_API_KEY; for tracing LANGFUSE_* or OTEL_EXPORTER_OTLP_*,
+see tracing.py). Model loading happens once when ``plato_core`` is imported,
+so the first start is slow.
 
 Which web pages may call the API (CORS):
     A browser only lets a page read this API's responses if the page's origin

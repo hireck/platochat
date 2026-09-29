@@ -345,7 +345,7 @@ def main() -> int:
                          "question": item["question"], "note": item.get("note"),
                          **run(core, item, aliases)})
     finally:
-        core.langfuse_client.flush()
+        core.tracing.flush()
         core.weaviate_client.close()
 
     (summarise_full if args.full else summarise_retrieval)(rows)

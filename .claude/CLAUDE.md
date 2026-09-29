@@ -108,7 +108,7 @@ We rely on the LLMs from the university's AI Lab. If they change the version the
 
 We may want to switch out Weaviate against Postgress with pgvector, as the latter as less likely to disappear without a clear alternative. Similarly we should review where else we rely on non-standard packages that might become a problem for maintenace in the coming decade or so.
 
-For LLM observability, we use LangFuse, but this may also be a risky dependency.
+For LLM observability we use LangFuse, but this may also be a risky dependency. Since 2026-09-29 the code does not depend on it: `platochat/tracing.py` records the spans through OpenTelemetry and sends them over OTLP to whatever backend `.env` names -- Langfuse (derived from the `LANGFUSE_*` keys), Arize Phoenix, Grafana Tempo, Jaeger -- or nowhere. Each span carries both OpenInference attributes (`input.value`, `openinference.span.kind`; Phoenix) and the OpenTelemetry GenAI ones (`gen_ai.request.model`, `gen_ai.usage.*`; how Langfuse tells an LLM call from other steps). Checked against the local Langfuse: same trace tree as before, with model and token counts. Whichever backend, the traces hold what the public typed, so it needs a retention period.
 
 ## MCP Server
 
